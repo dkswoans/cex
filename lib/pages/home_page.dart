@@ -16,6 +16,29 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<GymProvider>(
       builder: (context, provider, _) {
+        if (provider.isLoading && provider.machines.isEmpty) {
+          return const Scaffold(
+            backgroundColor: bgColor,
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (provider.errorMessage != null && provider.machines.isEmpty) {
+          return Scaffold(
+            backgroundColor: bgColor,
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  provider.errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: redColor),
+                ),
+              ),
+            ),
+          );
+        }
+
         return Scaffold(
           backgroundColor: bgColor,
           body: SafeArea(

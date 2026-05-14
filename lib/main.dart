@@ -3,9 +3,12 @@ import 'package:provider/provider.dart';
 
 import 'pages/login_page.dart';
 import 'providers/gym_provider.dart';
+import 'services/supabase_config.dart';
 import 'utils/status_utils.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SupabaseConfig.initialize();
   runApp(const ApdoApp());
 }
 

@@ -35,10 +35,11 @@ class MyReservationPage extends StatelessWidget {
                         reservation.machineId,
                         reservation.userId,
                       ),
-                      onCancel: () {
-                        final message = provider.cancelReservation(
+                      onCancel: () async {
+                        final message = await provider.cancelReservation(
                           reservation.reservationId,
                         );
+                        if (!context.mounted) return;
                         ScaffoldMessenger.of(
                           context,
                         ).showSnackBar(SnackBar(content: Text(message)));

@@ -87,6 +87,24 @@ class MachineModel {
     );
   }
 
+  factory MachineModel.fromSupabase(Map<String, dynamic> map) {
+    return MachineModel(
+      machineId: map['id'] as String,
+      name: map['name'] as String,
+      shortName: map['short_name'] as String? ?? map['name'] as String,
+      zoneName: map['zone_name'] as String? ?? '',
+      status: MachineStatus.values.byName(map['status'] as String),
+      maxUseMinutes: map['max_use_minutes'] as int,
+      mapX: (map['map_x'] as num?)?.toDouble() ?? 0.5,
+      mapY: (map['map_y'] as num?)?.toDouble() ?? 0.5,
+      description: map['description'] as String?,
+      currentUserId: map['current_user_id'] as String?,
+      currentUserName: map['current_user_name'] as String?,
+      startedAt: _dateFromMap(map['started_at']),
+      endAt: _dateFromMap(map['end_at']),
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'machineId': machineId,
@@ -102,6 +120,24 @@ class MachineModel {
       'currentUserName': currentUserName,
       'startedAt': startedAt?.toIso8601String(),
       'endAt': endAt?.toIso8601String(),
+    };
+  }
+
+  Map<String, dynamic> toSupabase() {
+    return {
+      'id': machineId,
+      'name': name,
+      'short_name': shortName,
+      'zone_name': zoneName,
+      'status': status.name,
+      'max_use_minutes': maxUseMinutes,
+      'map_x': mapX,
+      'map_y': mapY,
+      'description': description,
+      'current_user_id': currentUserId,
+      'current_user_name': currentUserName,
+      'started_at': startedAt?.toIso8601String(),
+      'end_at': endAt?.toIso8601String(),
     };
   }
 

@@ -5,61 +5,107 @@ import '../models/machine_model.dart';
 import '../models/reservation_model.dart';
 import '../models/usage_log_model.dart';
 import '../models/user_model.dart';
+import '../services/supabase_config.dart';
 
 class GymProvider extends ChangeNotifier {
   GymProvider() {
-    seedOrUpdateMachines();
+    syncFromDatabase();
   }
 
   UserModel? currentUser;
   final List<MachineModel> machines = [];
   final List<ReservationModel> reservations = [];
   final List<UsageLogModel> usageLogs = [];
+  bool isLoading = false;
+  String? errorMessage;
+
+  Future<void> syncFromDatabase() async {
+    isLoading = true;
+    errorMessage = null;
+    notifyListeners();
+
+    try {
+      final machineRows = await SupabaseConfig.client
+          .from('machines')
+          .select()
+          .order('id');
+
+      if (machineRows.isEmpty) {
+        await seedOrUpdateMachines();
+        return;
+      }
+
+      final reservationRows = await SupabaseConfig.client
+          .from('reservations')
+          .select()
+          .order('created_at');
+      final usageLogRows = await SupabaseConfig.client
+          .from('usage_logs')
+          .select()
+          .order('ended_at');
+
+      machines
+        ..clear()
+        ..addAll(
+          machineRows.map(
+            (row) => MachineModel.fromSupabase(Map<String, dynamic>.from(row)),
+          ),
+        );
+      reservations
+        ..clear()
+        ..addAll(
+          reservationRows.map(
+            (row) =>
+                ReservationModel.fromSupabase(Map<String, dynamic>.from(row)),
+          ),
+        );
+      usageLogs
+        ..clear()
+        ..addAll(
+          usageLogRows.map(
+            (row) => UsageLogModel.fromSupabase(Map<String, dynamic>.from(row)),
+          ),
+        );
+    } catch (error) {
+      errorMessage = 'Supabase 데이터를 불러오지 못했습니다: $error';
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
 
   Future<void> seedOrUpdateMachines() async {
     final now = DateTime.now();
     final defaultMachines = createDefaultMachines(now);
 
-    if (machines.isEmpty) {
-      machines.addAll(defaultMachines);
-      reservations.add(
-        ReservationModel(
-          reservationId: 'dummy_leg_press_1',
-          machineId: 'leg_press',
-          machineName: '레그프레스',
-          userId: 'dummy_2',
-          userName: '박지훈',
-          status: ReservationStatus.active,
-          createdAt: now.subtract(const Duration(minutes: 6)),
-          order: 1,
-        ),
-      );
-    } else {
-      for (final seed in defaultMachines) {
-        final index = machines.indexWhere(
-          (machine) => machine.machineId == seed.machineId,
+    await SupabaseConfig.client
+        .from('machines')
+        .upsert(
+          defaultMachines.map((machine) => machine.toSupabase()).toList(),
         );
-        if (index == -1) {
-          machines.add(seed);
-        } else {
-          final old = machines[index];
-          machines[index] = old.copyWith(
-            shortName: seed.shortName,
-            zoneName: seed.zoneName,
-            mapX: seed.mapX,
-            mapY: seed.mapY,
-            description: seed.description,
-          );
-        }
-      }
-    }
-    notifyListeners();
+    await SupabaseConfig.client.from('reservations').upsert([
+      ReservationModel(
+        reservationId: 'dummy_leg_press_1',
+        machineId: 'leg_press',
+        machineName: '레그프레스',
+        userId: 'dummy_2',
+        userName: '박지훈',
+        status: ReservationStatus.active,
+        createdAt: now.subtract(const Duration(minutes: 6)),
+        order: 1,
+        reservedStartAt: now.subtract(const Duration(minutes: 6)),
+        reservedEndAt: now.add(const Duration(minutes: 14)),
+        claimExpiresAt: now.subtract(const Duration(minutes: 5)),
+      ).toSupabase(),
+    ]);
+
+    await syncFromDatabase();
   }
 
   Future<void> resetMachinesForDemo() async {
-    machines.clear();
-    reservations.clear();
-    usageLogs.clear();
+    await SupabaseConfig.client.from('reservations').delete().neq('id', '');
+    await SupabaseConfig.client.from('usage_logs').delete().neq('id', '');
+    await SupabaseConfig.client.from('machines').delete().neq('id', '');
     await seedOrUpdateMachines();
   }
 
@@ -125,7 +171,7 @@ class GymProvider extends ChangeNotifier {
         .firstOrNull;
   }
 
-  String reserveMachine(String machineId) {
+  Future<String> reserveMachine(String machineId) async {
     final user = currentUser;
     if (user == null) return '로그인이 필요합니다.';
 
@@ -143,47 +189,60 @@ class GymProvider extends ChangeNotifier {
 
     final queue = getReservationsByMachine(machineId);
     final order = queue.length + 1;
-    reservations.add(
-      ReservationModel(
-        reservationId:
-            '${machineId}_${user.userId}_${DateTime.now().millisecondsSinceEpoch}',
-        machineId: machine.machineId,
-        machineName: machine.name,
-        userId: user.userId,
-        userName: user.name,
-        status: order == 1 && machine.status == MachineStatus.available
-            ? ReservationStatus.active
-            : ReservationStatus.waiting,
-        createdAt: DateTime.now(),
-        order: order,
-      ),
+    final now = DateTime.now();
+    final reservation = ReservationModel(
+      reservationId:
+          '${machineId}_${user.userId}_${now.millisecondsSinceEpoch}',
+      machineId: machine.machineId,
+      machineName: machine.name,
+      userId: user.userId,
+      userName: user.name,
+      status: order == 1 && machine.status == MachineStatus.available
+          ? ReservationStatus.active
+          : ReservationStatus.waiting,
+      createdAt: now,
+      order: order,
+      reservedStartAt: now,
+      reservedEndAt: now.add(Duration(minutes: machine.maxUseMinutes)),
+      claimExpiresAt: now.add(const Duration(minutes: 1)),
     );
 
-    if (machine.status == MachineStatus.available) {
-      _replaceMachine(machine.copyWith(status: MachineStatus.reserved));
+    try {
+      await SupabaseConfig.client
+          .from('reservations')
+          .insert(reservation.toSupabase());
+      if (machine.status == MachineStatus.available) {
+        await _updateMachine(machine.copyWith(status: MachineStatus.reserved));
+      }
+      await syncFromDatabase();
+      return '예약이 완료되었습니다.';
+    } catch (error) {
+      return '예약에 실패했습니다: $error';
     }
-
-    notifyListeners();
-    return '예약이 완료되었습니다.';
   }
 
-  String cancelReservation(String reservationId) {
+  Future<String> cancelReservation(String reservationId) async {
     final index = reservations.indexWhere(
       (reservation) => reservation.reservationId == reservationId,
     );
     if (index == -1) return '예약을 찾을 수 없습니다.';
 
     final machineId = reservations[index].machineId;
-    reservations[index] = reservations[index].copyWith(
-      status: ReservationStatus.cancelled,
-    );
-    _reorderReservations(machineId);
-    _refreshMachineReservationState(machineId);
-    notifyListeners();
-    return '예약이 취소되었습니다.';
+    try {
+      await SupabaseConfig.client
+          .from('reservations')
+          .update({'status': ReservationStatus.cancelled.name})
+          .eq('id', reservationId);
+      await _reorderReservations(machineId);
+      await _refreshMachineReservationState(machineId);
+      await syncFromDatabase();
+      return '예약을 취소했습니다.';
+    } catch (error) {
+      return '예약 취소에 실패했습니다: $error';
+    }
   }
 
-  String startUsingMachine(String machineId) {
+  Future<String> startUsingMachine(String machineId) async {
     final user = currentUser;
     if (user == null) return '로그인이 필요합니다.';
 
@@ -223,32 +282,31 @@ class GymProvider extends ChangeNotifier {
     }
 
     final now = DateTime.now();
-    _replaceMachine(
-      machine.copyWith(
-        status: MachineStatus.using,
-        currentUserId: user.userId,
-        currentUserName: user.name,
-        startedAt: now,
-        endAt: now.add(Duration(minutes: machine.maxUseMinutes)),
-      ),
+    final updatedMachine = machine.copyWith(
+      status: MachineStatus.using,
+      currentUserId: user.userId,
+      currentUserName: user.name,
+      startedAt: now,
+      endAt: now.add(Duration(minutes: machine.maxUseMinutes)),
     );
 
-    if (activeReservation != null) {
-      final index = reservations.indexWhere(
-        (reservation) =>
-            reservation.reservationId == activeReservation.reservationId,
-      );
-      reservations[index] = reservations[index].copyWith(
-        status: ReservationStatus.completed,
-      );
-      _reorderReservations(machineId);
+    try {
+      await _updateMachine(updatedMachine);
+      if (activeReservation != null) {
+        await SupabaseConfig.client
+            .from('reservations')
+            .update({'status': ReservationStatus.completed.name})
+            .eq('id', activeReservation.reservationId);
+        await _reorderReservations(machineId);
+      }
+      await syncFromDatabase();
+      return '사용을 시작했습니다.';
+    } catch (error) {
+      return '사용 시작에 실패했습니다: $error';
     }
-
-    notifyListeners();
-    return '사용을 시작했습니다.';
   }
 
-  String finishUsingMachine(String machineId) {
+  Future<String> finishUsingMachine(String machineId) async {
     final user = currentUser;
     if (user == null) return '로그인이 필요합니다.';
 
@@ -259,17 +317,15 @@ class GymProvider extends ChangeNotifier {
 
     final now = DateTime.now();
     final startedAt = machine.startedAt ?? now;
-    usageLogs.add(
-      UsageLogModel(
-        logId: '${machineId}_${user.userId}_${now.millisecondsSinceEpoch}',
-        machineId: machine.machineId,
-        machineName: machine.name,
-        userId: user.userId,
-        userName: user.name,
-        startedAt: startedAt,
-        endedAt: now,
-        usedMinutes: now.difference(startedAt).inMinutes,
-      ),
+    final usageLog = UsageLogModel(
+      logId: '${machineId}_${user.userId}_${now.millisecondsSinceEpoch}',
+      machineId: machine.machineId,
+      machineName: machine.name,
+      userId: user.userId,
+      userName: user.name,
+      startedAt: startedAt,
+      endedAt: now,
+      usedMinutes: now.difference(startedAt).inMinutes,
     );
 
     final waiting =
@@ -282,32 +338,40 @@ class GymProvider extends ChangeNotifier {
             .toList()
           ..sort((a, b) => a.order.compareTo(b.order));
 
-    if (waiting.isEmpty) {
-      _replaceMachine(
-        machine.copyWith(
-          status: MachineStatus.available,
-          clearCurrentUser: true,
-          clearTimes: true,
-        ),
-      );
-    } else {
-      final next = waiting.first;
-      final index = reservations.indexWhere(
-        (reservation) => reservation.reservationId == next.reservationId,
-      );
-      reservations[index] = next.copyWith(status: ReservationStatus.active);
-      _replaceMachine(
-        machine.copyWith(
-          status: MachineStatus.reserved,
-          clearCurrentUser: true,
-          clearTimes: true,
-        ),
-      );
-      _reorderReservations(machineId);
-    }
+    try {
+      await SupabaseConfig.client
+          .from('usage_logs')
+          .insert(usageLog.toSupabase());
 
-    notifyListeners();
-    return '사용이 종료되었습니다.';
+      if (waiting.isEmpty) {
+        await _updateMachine(
+          machine.copyWith(
+            status: MachineStatus.available,
+            clearCurrentUser: true,
+            clearTimes: true,
+          ),
+        );
+      } else {
+        final next = waiting.first;
+        await SupabaseConfig.client
+            .from('reservations')
+            .update({'status': ReservationStatus.active.name})
+            .eq('id', next.reservationId);
+        await _updateMachine(
+          machine.copyWith(
+            status: MachineStatus.reserved,
+            clearCurrentUser: true,
+            clearTimes: true,
+          ),
+        );
+        await _reorderReservations(machineId);
+      }
+
+      await syncFromDatabase();
+      return '사용을 종료했습니다.';
+    } catch (error) {
+      return '사용 종료에 실패했습니다: $error';
+    }
   }
 
   int getRemainingMinutes(MachineModel machine) {
@@ -351,14 +415,15 @@ class GymProvider extends ChangeNotifier {
     return remaining + aheadCount * machine.maxUseMinutes;
   }
 
-  void _replaceMachine(MachineModel machine) {
-    final index = machines.indexWhere(
-      (item) => item.machineId == machine.machineId,
-    );
-    machines[index] = machine;
+  Future<void> _updateMachine(MachineModel machine) async {
+    final values = machine.toSupabase()..remove('id');
+    await SupabaseConfig.client
+        .from('machines')
+        .update(values)
+        .eq('id', machine.machineId);
   }
 
-  void _reorderReservations(String machineId) {
+  Future<void> _reorderReservations(String machineId) async {
     final active =
         reservations
             .where(
@@ -380,22 +445,22 @@ class GymProvider extends ChangeNotifier {
 
     var order = 1;
     for (final reservation in [...active, ...waiting]) {
-      final index = reservations.indexWhere(
-        (item) => item.reservationId == reservation.reservationId,
-      );
-      reservations[index] = reservations[index].copyWith(order: order);
+      await SupabaseConfig.client
+          .from('reservations')
+          .update({'queue_order': order})
+          .eq('id', reservation.reservationId);
       order++;
     }
   }
 
-  void _refreshMachineReservationState(String machineId) {
+  Future<void> _refreshMachineReservationState(String machineId) async {
     final machine = getMachineById(machineId);
     if (machine.status == MachineStatus.using ||
         machine.status == MachineStatus.repair) {
       return;
     }
     final queue = getReservationsByMachine(machineId);
-    _replaceMachine(
+    await _updateMachine(
       machine.copyWith(
         status: queue.isEmpty
             ? MachineStatus.available

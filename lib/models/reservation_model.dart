@@ -10,6 +10,9 @@ class ReservationModel {
     required this.status,
     required this.createdAt,
     required this.order,
+    this.reservedStartAt,
+    this.reservedEndAt,
+    this.claimExpiresAt,
   });
 
   final String reservationId;
@@ -20,6 +23,9 @@ class ReservationModel {
   final ReservationStatus status;
   final DateTime createdAt;
   final int order;
+  final DateTime? reservedStartAt;
+  final DateTime? reservedEndAt;
+  final DateTime? claimExpiresAt;
 
   ReservationModel copyWith({
     String? reservationId,
@@ -30,6 +36,9 @@ class ReservationModel {
     ReservationStatus? status,
     DateTime? createdAt,
     int? order,
+    DateTime? reservedStartAt,
+    DateTime? reservedEndAt,
+    DateTime? claimExpiresAt,
   }) {
     return ReservationModel(
       reservationId: reservationId ?? this.reservationId,
@@ -40,6 +49,9 @@ class ReservationModel {
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       order: order ?? this.order,
+      reservedStartAt: reservedStartAt ?? this.reservedStartAt,
+      reservedEndAt: reservedEndAt ?? this.reservedEndAt,
+      claimExpiresAt: claimExpiresAt ?? this.claimExpiresAt,
     );
   }
 
@@ -53,6 +65,25 @@ class ReservationModel {
       status: ReservationStatus.values.byName(map['status'] as String),
       createdAt: _dateFromMap(map['createdAt'])!,
       order: map['order'] as int,
+      reservedStartAt: _dateFromMap(map['reservedStartAt']),
+      reservedEndAt: _dateFromMap(map['reservedEndAt']),
+      claimExpiresAt: _dateFromMap(map['claimExpiresAt']),
+    );
+  }
+
+  factory ReservationModel.fromSupabase(Map<String, dynamic> map) {
+    return ReservationModel(
+      reservationId: map['id'] as String,
+      machineId: map['machine_id'] as String,
+      machineName: map['machine_name'] as String,
+      userId: map['user_id'] as String,
+      userName: map['user_name'] as String,
+      status: ReservationStatus.values.byName(map['status'] as String),
+      createdAt: _dateFromMap(map['created_at'])!,
+      order: map['queue_order'] as int,
+      reservedStartAt: _dateFromMap(map['reserved_start_at']),
+      reservedEndAt: _dateFromMap(map['reserved_end_at']),
+      claimExpiresAt: _dateFromMap(map['claim_expires_at']),
     );
   }
 
@@ -66,6 +97,27 @@ class ReservationModel {
       'status': status.name,
       'createdAt': createdAt.toIso8601String(),
       'order': order,
+      'reservedStartAt': reservedStartAt?.toIso8601String(),
+      'reservedEndAt': reservedEndAt?.toIso8601String(),
+      'claimExpiresAt': claimExpiresAt?.toIso8601String(),
+    };
+  }
+
+  Map<String, dynamic> toSupabase() {
+    return {
+      'id': reservationId,
+      'machine_id': machineId,
+      'machine_name': machineName,
+      'user_id': userId,
+      'user_name': userName,
+      'status': status.name,
+      'created_at': createdAt.toIso8601String(),
+      'queue_order': order,
+      'reserved_start_at': (reservedStartAt ?? createdAt).toIso8601String(),
+      'reserved_end_at': (reservedEndAt ?? createdAt).toIso8601String(),
+      'claim_expires_at':
+          (claimExpiresAt ?? createdAt.add(const Duration(minutes: 1)))
+              .toIso8601String(),
     };
   }
 

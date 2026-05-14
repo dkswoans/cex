@@ -137,12 +137,14 @@ class MachineDetailPage extends StatelessWidget {
                       subtitle: Text(reservationStatusText(reservation.status)),
                       trailing: reservation.userId == currentUser?.userId
                           ? TextButton(
-                              onPressed: () => _showMessage(
-                                context,
-                                provider.cancelReservation(
-                                  reservation.reservationId,
-                                ),
-                              ),
+                              onPressed: () async {
+                                final message = await provider
+                                    .cancelReservation(
+                                      reservation.reservationId,
+                                    );
+                                if (!context.mounted) return;
+                                _showMessage(context, message);
+                              },
                               child: const Text(
                                 '예약 취소',
                                 style: TextStyle(color: redColor),
@@ -161,24 +163,32 @@ class MachineDetailPage extends StatelessWidget {
                   canReserve: canReserve,
                   canCancel: myReservation != null,
                   canFinish: isCurrentUserUsing,
-                  onStart: () => _showMessage(
-                    context,
-                    provider.startUsingMachine(machineId),
-                  ),
-                  onReserve: () =>
-                      _showMessage(context, provider.reserveMachine(machineId)),
+                  onStart: () async {
+                    final message = await provider.startUsingMachine(machineId);
+                    if (!context.mounted) return;
+                    _showMessage(context, message);
+                  },
+                  onReserve: () async {
+                    final message = await provider.reserveMachine(machineId);
+                    if (!context.mounted) return;
+                    _showMessage(context, message);
+                  },
                   onCancel: myReservation == null
                       ? null
-                      : () => _showMessage(
-                          context,
-                          provider.cancelReservation(
+                      : () async {
+                          final message = await provider.cancelReservation(
                             myReservation.reservationId,
-                          ),
-                        ),
-                  onFinish: () => _showMessage(
-                    context,
-                    provider.finishUsingMachine(machineId),
-                  ),
+                          );
+                          if (!context.mounted) return;
+                          _showMessage(context, message);
+                        },
+                  onFinish: () async {
+                    final message = await provider.finishUsingMachine(
+                      machineId,
+                    );
+                    if (!context.mounted) return;
+                    _showMessage(context, message);
+                  },
                 ),
             ],
           ),

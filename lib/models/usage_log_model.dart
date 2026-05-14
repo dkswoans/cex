@@ -54,6 +54,19 @@ class UsageLogModel {
     );
   }
 
+  factory UsageLogModel.fromSupabase(Map<String, dynamic> map) {
+    return UsageLogModel(
+      logId: map['id'] as String,
+      machineId: map['machine_id'] as String,
+      machineName: map['machine_name'] as String,
+      userId: map['user_id'] as String,
+      userName: map['user_name'] as String,
+      startedAt: _dateFromMap(map['started_at'])!,
+      endedAt: _dateFromMap(map['ended_at'])!,
+      usedMinutes: map['used_minutes'] as int,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'logId': logId,
@@ -64,6 +77,19 @@ class UsageLogModel {
       'startedAt': startedAt.toIso8601String(),
       'endedAt': endedAt.toIso8601String(),
       'usedMinutes': usedMinutes,
+    };
+  }
+
+  Map<String, dynamic> toSupabase() {
+    return {
+      'id': logId,
+      'machine_id': machineId,
+      'machine_name': machineName,
+      'user_id': userId,
+      'user_name': userName,
+      'started_at': startedAt.toIso8601String(),
+      'ended_at': endedAt.toIso8601String(),
+      'used_minutes': usedMinutes,
     };
   }
 
