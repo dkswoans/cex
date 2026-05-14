@@ -1,15 +1,21 @@
 String formatDateTime(DateTime? dateTime) {
   if (dateTime == null) return '-';
-  final hour = dateTime.hour.toString().padLeft(2, '0');
-  final minute = dateTime.minute.toString().padLeft(2, '0');
-  return '${dateTime.month}/${dateTime.day} $hour:$minute';
+  final local = _toKoreaTime(dateTime);
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '${local.month}/${local.day} $hour:$minute';
 }
 
 String formatTimeOnly(DateTime? dateTime) {
   if (dateTime == null) return '-';
-  final hour = dateTime.hour.toString().padLeft(2, '0');
-  final minute = dateTime.minute.toString().padLeft(2, '0');
+  final local = _toKoreaTime(dateTime);
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
   return '$hour:$minute';
+}
+
+DateTime _toKoreaTime(DateTime dateTime) {
+  return dateTime.toUtc().add(const Duration(hours: 9));
 }
 
 String formatRemainingMinutes(int minutes) {
