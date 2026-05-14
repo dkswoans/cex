@@ -26,7 +26,7 @@ class MachineDetailPage extends StatelessWidget {
             currentUser != null &&
             machine.currentUserId != null &&
             machine.currentUserId == currentUser.userId;
-        final maxUseMinutes = machine.maxUseMinutes.clamp(1, 15);
+        final maxUseMinutes = provider.getAvailableUseMinutesNow(machine);
         final canStart =
             machine.status == MachineStatus.available ||
             (machine.status == MachineStatus.reserved &&
@@ -160,6 +160,10 @@ class MachineDetailPage extends StatelessWidget {
                   canCancel: myReservation != null,
                   canFinish: isCurrentUserUsing,
                   onStart: () async {
+                    if (maxUseMinutes <= 0) {
+                      _showMessage(context, '사용은 21:00부터 22:50 안에서만 가능합니다.');
+                      return;
+                    }
                     final minutes = await _askMinutes(
                       context,
                       title: '사용 시간',
@@ -177,18 +181,12 @@ class MachineDetailPage extends StatelessWidget {
                     _showMessage(context, message);
                   },
                   onReserve: () async {
-                    final minutes = await _askMinutes(
-                      context,
-                      title: '예약 시간',
-                      maxMinutes: 15,
-                      initialMinutes: 15,
-                      helperText: '1분부터 15분까지 예약할 수 있습니다.',
-                      confirmLabel: '예약하기',
-                    );
-                    if (minutes == null) return;
+                    final request = await _askReservation(context);
+                    if (request == null) return;
                     final message = await provider.reserveMachine(
                       machineId,
-                      minutes: minutes,
+                      minutes: request.minutes,
+                      startAt: request.startAt,
                     );
                     if (!context.mounted) return;
                     _showMessage(context, message);
@@ -217,10 +215,11 @@ class MachineDetailPage extends StatelessWidget {
     );
   }
 
-  void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+  Future<_ReservationRequest?> _askReservation(BuildContext context) {
+    return showDialog<_ReservationRequest>(
+      context: context,
+      builder: (_) => const _ReservationDialog(),
+    );
   }
 
   Future<int?> _askMinutes(
@@ -241,6 +240,145 @@ class MachineDetailPage extends StatelessWidget {
         confirmLabel: confirmLabel,
       ),
     );
+  }
+
+  void _showMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _ReservationRequest {
+  const _ReservationRequest({required this.startAt, required this.minutes});
+
+  final DateTime startAt;
+  final int minutes;
+}
+
+class _ReservationDialog extends StatefulWidget {
+  const _ReservationDialog();
+
+  @override
+  State<_ReservationDialog> createState() => _ReservationDialogState();
+}
+
+class _ReservationDialogState extends State<_ReservationDialog> {
+  final _minutesController = TextEditingController(text: '15');
+  TimeOfDay _startTime = const TimeOfDay(hour: 21, minute: 0);
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _minutesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('예약 시간'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('시작 시간'),
+            subtitle: const Text('21:00~22:50 사이에서 선택'),
+            trailing: FilledButton(
+              onPressed: _pickStartTime,
+              child: Text(_formatTime(_startTime)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _minutesController,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: '분',
+              helperText: '1분부터 15분까지 예약할 수 있습니다.',
+              errorText: _errorText,
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('취소'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('예약하기')),
+      ],
+    );
+  }
+
+  Future<void> _pickStartTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _startTime,
+      helpText: '예약 시작 시간',
+      cancelText: '취소',
+      confirmText: '선택',
+    );
+    if (picked == null) return;
+    setState(() {
+      _startTime = picked;
+      _errorText = null;
+    });
+  }
+
+  void _submit() {
+    final minutes = int.tryParse(_minutesController.text.trim());
+    if (minutes == null || minutes < 1 || minutes > 15) {
+      setState(() {
+        _errorText = '이용 시간은 1~15분으로 입력하세요.';
+      });
+      return;
+    }
+
+    final startAt = _todayKoreaTimeAsUtc(_startTime.hour, _startTime.minute);
+    final endKst = _koreaTime(startAt).add(Duration(minutes: minutes));
+    if (_startTime.hour < 21 ||
+        _startTime.hour > 22 ||
+        (_startTime.hour == 22 && _startTime.minute > 50) ||
+        endKst.hour > 22 ||
+        (endKst.hour == 22 && endKst.minute > 50)) {
+      setState(() {
+        _errorText = '예약은 21:00부터 22:50 안에서만 가능합니다.';
+      });
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    Navigator.of(
+      context,
+    ).pop(_ReservationRequest(startAt: startAt, minutes: minutes));
+  }
+
+  DateTime _todayKoreaTimeAsUtc(int hour, int minute) {
+    final nowKst = _koreaTime(DateTime.now());
+    var startAt = DateTime.utc(
+      nowKst.year,
+      nowKst.month,
+      nowKst.day,
+      hour - 9,
+      minute,
+    );
+    if (_koreaTime(startAt).isBefore(nowKst)) {
+      startAt = startAt.add(const Duration(days: 1));
+    }
+    return startAt;
+  }
+
+  DateTime _koreaTime(DateTime dateTime) {
+    return dateTime.toUtc().add(const Duration(hours: 9));
+  }
+
+  String _formatTime(TimeOfDay time) {
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 }
 

@@ -174,10 +174,19 @@ class GymProvider extends ChangeNotifier {
   Future<String> reserveMachine(
     String machineId, {
     required int minutes,
+    required DateTime startAt,
   }) async {
     final user = currentUser;
     if (user == null) return '로그인이 필요합니다.';
     if (minutes < 1 || minutes > 15) return '예약 시간은 1분부터 15분까지 가능합니다.';
+
+    final reservationError = _validateBusinessWindow(
+      startAt: startAt,
+      minutes: minutes,
+      actionName: '예약',
+      requireFuture: true,
+    );
+    if (reservationError != null) return reservationError;
 
     final machine = getMachineById(machineId);
     if (machine.status == MachineStatus.repair) {
@@ -201,23 +210,18 @@ class GymProvider extends ChangeNotifier {
       machineName: machine.name,
       userId: user.userId,
       userName: user.name,
-      status: order == 1 && machine.status == MachineStatus.available
-          ? ReservationStatus.active
-          : ReservationStatus.waiting,
+      status: ReservationStatus.waiting,
       createdAt: now,
       order: order,
-      reservedStartAt: now,
-      reservedEndAt: now.add(Duration(minutes: minutes)),
-      claimExpiresAt: now.add(const Duration(minutes: 1)),
+      reservedStartAt: startAt,
+      reservedEndAt: startAt.add(Duration(minutes: minutes)),
+      claimExpiresAt: startAt.add(const Duration(minutes: 1)),
     );
 
     try {
       await SupabaseConfig.client
           .from('reservations')
           .insert(reservation.toSupabase());
-      if (machine.status == MachineStatus.available) {
-        await _updateMachine(machine.copyWith(status: MachineStatus.reserved));
-      }
       await syncFromDatabase();
       return '예약이 완료되었습니다.';
     } catch (error) {
@@ -261,6 +265,12 @@ class GymProvider extends ChangeNotifier {
     if (minutes < 1 || minutes > maxMinutes) {
       return '사용 시간은 1분부터 $maxMinutes분까지 가능합니다.';
     }
+    final businessError = _validateBusinessWindow(
+      startAt: DateTime.now(),
+      minutes: minutes,
+      actionName: '사용',
+    );
+    if (businessError != null) return businessError;
     if (machine.status == MachineStatus.repair) {
       return '점검 중인 기구입니다.';
     }
@@ -436,6 +446,58 @@ class GymProvider extends ChangeNotifier {
         ? getRemainingMinutes(machine)
         : 0;
     return remaining + aheadCount * machine.maxUseMinutes;
+  }
+
+  int getAvailableUseMinutesNow(MachineModel machine) {
+    final now = _koreaTime(DateTime.now());
+    final closeAt = _businessCloseAt(now);
+    final remainingUntilClose = closeAt.difference(now).inMinutes;
+    if (remainingUntilClose <= 0 || !_startsInBusinessHours(now)) return 0;
+    return [
+      machine.maxUseMinutes,
+      15,
+      remainingUntilClose,
+    ].reduce((value, element) => value < element ? value : element);
+  }
+
+  String? _validateBusinessWindow({
+    required DateTime startAt,
+    required int minutes,
+    required String actionName,
+    bool requireFuture = false,
+  }) {
+    final startKst = _koreaTime(startAt);
+    final endKst = startKst.add(Duration(minutes: minutes));
+    final openAt = _businessOpenAt(startKst);
+    final closeAt = _businessCloseAt(startKst);
+
+    if (requireFuture && startKst.isBefore(_koreaTime(DateTime.now()))) {
+      return '$actionName 시간은 현재 이후여야 합니다.';
+    }
+
+    if (startKst.isBefore(openAt) || endKst.isAfter(closeAt)) {
+      return '$actionName은 21:00부터 22:50 안에서만 가능합니다.';
+    }
+
+    return null;
+  }
+
+  bool _startsInBusinessHours(DateTime koreaTime) {
+    final openAt = _businessOpenAt(koreaTime);
+    final closeAt = _businessCloseAt(koreaTime);
+    return !koreaTime.isBefore(openAt) && koreaTime.isBefore(closeAt);
+  }
+
+  DateTime _koreaTime(DateTime dateTime) {
+    return dateTime.toUtc().add(const Duration(hours: 9));
+  }
+
+  DateTime _businessOpenAt(DateTime koreaTime) {
+    return DateTime(koreaTime.year, koreaTime.month, koreaTime.day, 21);
+  }
+
+  DateTime _businessCloseAt(DateTime koreaTime) {
+    return DateTime(koreaTime.year, koreaTime.month, koreaTime.day, 22, 50);
   }
 
   Future<void> _updateMachine(MachineModel machine) async {
