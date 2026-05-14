@@ -25,13 +25,14 @@ class MachineDetailPage extends StatelessWidget {
             currentUser != null &&
             machine.currentUserId != null &&
             machine.currentUserId == currentUser.userId;
+        final maxUseMinutes = machine.maxUseMinutes.clamp(1, 15);
         final canStart =
             machine.status == MachineStatus.available ||
             (machine.status == MachineStatus.reserved &&
                 myReservation?.status == ReservationStatus.active);
         final canReserve =
-            (machine.status == MachineStatus.using ||
-                machine.status == MachineStatus.reserved) &&
+            machine.status != MachineStatus.repair &&
+            !isCurrentUserUsing &&
             myReservation == null;
 
         return Scaffold(
@@ -164,12 +165,36 @@ class MachineDetailPage extends StatelessWidget {
                   canCancel: myReservation != null,
                   canFinish: isCurrentUserUsing,
                   onStart: () async {
-                    final message = await provider.startUsingMachine(machineId);
+                    final minutes = await _askMinutes(
+                      context,
+                      title: '사용 시간',
+                      maxMinutes: maxUseMinutes,
+                      initialMinutes: maxUseMinutes,
+                      helperText: '1분부터 $maxUseMinutes분까지 사용할 수 있습니다.',
+                      confirmLabel: '사용하기',
+                    );
+                    if (minutes == null) return;
+                    final message = await provider.startUsingMachine(
+                      machineId,
+                      minutes: minutes,
+                    );
                     if (!context.mounted) return;
                     _showMessage(context, message);
                   },
                   onReserve: () async {
-                    final message = await provider.reserveMachine(machineId);
+                    final minutes = await _askMinutes(
+                      context,
+                      title: '예약 시간',
+                      maxMinutes: 15,
+                      initialMinutes: 15,
+                      helperText: '1분부터 15분까지 예약할 수 있습니다.',
+                      confirmLabel: '예약하기',
+                    );
+                    if (minutes == null) return;
+                    final message = await provider.reserveMachine(
+                      machineId,
+                      minutes: minutes,
+                    );
                     if (!context.mounted) return;
                     _showMessage(context, message);
                   },
@@ -201,6 +226,102 @@ class MachineDetailPage extends StatelessWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<int?> _askMinutes(
+    BuildContext context, {
+    required String title,
+    required int maxMinutes,
+    required int initialMinutes,
+    required String helperText,
+    required String confirmLabel,
+  }) {
+    return showDialog<int>(
+      context: context,
+      builder: (_) => _MinutesDialog(
+        title: title,
+        maxMinutes: maxMinutes,
+        initialMinutes: initialMinutes,
+        helperText: helperText,
+        confirmLabel: confirmLabel,
+      ),
+    );
+  }
+}
+
+class _MinutesDialog extends StatefulWidget {
+  const _MinutesDialog({
+    required this.title,
+    required this.maxMinutes,
+    required this.initialMinutes,
+    required this.helperText,
+    required this.confirmLabel,
+  });
+
+  final String title;
+  final int maxMinutes;
+  final int initialMinutes;
+  final String helperText;
+  final String confirmLabel;
+
+  @override
+  State<_MinutesDialog> createState() => _MinutesDialogState();
+}
+
+class _MinutesDialogState extends State<_MinutesDialog> {
+  late final TextEditingController _controller;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: widget.initialMinutes.clamp(1, widget.maxMinutes).toString(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(
+          labelText: '분',
+          helperText: widget.helperText,
+          errorText: _errorText,
+        ),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('취소'),
+        ),
+        FilledButton(onPressed: _submit, child: Text(widget.confirmLabel)),
+      ],
+    );
+  }
+
+  void _submit() {
+    final minutes = int.tryParse(_controller.text.trim());
+    if (minutes == null || minutes < 1 || minutes > widget.maxMinutes) {
+      setState(() {
+        _errorText = '1~${widget.maxMinutes} 사이의 숫자를 입력하세요.';
+      });
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).pop(minutes);
   }
 }
 

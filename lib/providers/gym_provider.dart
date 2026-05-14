@@ -94,7 +94,7 @@ class GymProvider extends ChangeNotifier {
         createdAt: now.subtract(const Duration(minutes: 6)),
         order: 1,
         reservedStartAt: now.subtract(const Duration(minutes: 6)),
-        reservedEndAt: now.add(const Duration(minutes: 14)),
+        reservedEndAt: now.add(const Duration(minutes: 9)),
         claimExpiresAt: now.subtract(const Duration(minutes: 5)),
       ).toSupabase(),
     ]);
@@ -171,9 +171,13 @@ class GymProvider extends ChangeNotifier {
         .firstOrNull;
   }
 
-  Future<String> reserveMachine(String machineId) async {
+  Future<String> reserveMachine(
+    String machineId, {
+    required int minutes,
+  }) async {
     final user = currentUser;
     if (user == null) return '로그인이 필요합니다.';
+    if (minutes < 1 || minutes > 15) return '예약 시간은 1분부터 15분까지 가능합니다.';
 
     final machine = getMachineById(machineId);
     if (machine.status == MachineStatus.repair) {
@@ -203,7 +207,7 @@ class GymProvider extends ChangeNotifier {
       createdAt: now,
       order: order,
       reservedStartAt: now,
-      reservedEndAt: now.add(Duration(minutes: machine.maxUseMinutes)),
+      reservedEndAt: now.add(Duration(minutes: minutes)),
       claimExpiresAt: now.add(const Duration(minutes: 1)),
     );
 
@@ -233,6 +237,9 @@ class GymProvider extends ChangeNotifier {
           .from('reservations')
           .update({'status': ReservationStatus.cancelled.name})
           .eq('id', reservationId);
+      reservations[index] = reservations[index].copyWith(
+        status: ReservationStatus.cancelled,
+      );
       await _reorderReservations(machineId);
       await _refreshMachineReservationState(machineId);
       await syncFromDatabase();
@@ -242,11 +249,18 @@ class GymProvider extends ChangeNotifier {
     }
   }
 
-  Future<String> startUsingMachine(String machineId) async {
+  Future<String> startUsingMachine(
+    String machineId, {
+    required int minutes,
+  }) async {
     final user = currentUser;
     if (user == null) return '로그인이 필요합니다.';
 
     final machine = getMachineById(machineId);
+    final maxMinutes = machine.maxUseMinutes.clamp(1, 15);
+    if (minutes < 1 || minutes > maxMinutes) {
+      return '사용 시간은 1분부터 $maxMinutes분까지 가능합니다.';
+    }
     if (machine.status == MachineStatus.repair) {
       return '점검 중인 기구입니다.';
     }
@@ -287,7 +301,7 @@ class GymProvider extends ChangeNotifier {
       currentUserId: user.userId,
       currentUserName: user.name,
       startedAt: now,
-      endAt: now.add(Duration(minutes: machine.maxUseMinutes)),
+      endAt: now.add(Duration(minutes: minutes)),
     );
 
     try {
@@ -297,6 +311,15 @@ class GymProvider extends ChangeNotifier {
             .from('reservations')
             .update({'status': ReservationStatus.completed.name})
             .eq('id', activeReservation.reservationId);
+        final index = reservations.indexWhere(
+          (reservation) =>
+              reservation.reservationId == activeReservation.reservationId,
+        );
+        if (index != -1) {
+          reservations[index] = reservations[index].copyWith(
+            status: ReservationStatus.completed,
+          );
+        }
         await _reorderReservations(machineId);
       }
       await syncFromDatabase();

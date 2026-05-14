@@ -104,6 +104,8 @@ class ReservationModel {
   }
 
   Map<String, dynamic> toSupabase() {
+    final startAt = reservedStartAt ?? createdAt;
+    final endAt = reservedEndAt ?? startAt.add(const Duration(minutes: 15));
     return {
       'id': reservationId,
       'machine_id': machineId,
@@ -113,10 +115,10 @@ class ReservationModel {
       'status': status.name,
       'created_at': createdAt.toIso8601String(),
       'queue_order': order,
-      'reserved_start_at': (reservedStartAt ?? createdAt).toIso8601String(),
-      'reserved_end_at': (reservedEndAt ?? createdAt).toIso8601String(),
+      'reserved_start_at': startAt.toIso8601String(),
+      'reserved_end_at': endAt.toIso8601String(),
       'claim_expires_at':
-          (claimExpiresAt ?? createdAt.add(const Duration(minutes: 1)))
+          (claimExpiresAt ?? startAt.add(const Duration(minutes: 1)))
               .toIso8601String(),
     };
   }
