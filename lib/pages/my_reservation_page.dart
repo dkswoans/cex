@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
+import '../widgets/app_design.dart';
 import '../widgets/reservation_card.dart';
 
 class MyReservationPage extends StatelessWidget {
@@ -19,9 +20,9 @@ class MyReservationPage extends StatelessWidget {
           appBar: AppBar(title: const Text('내 예약')),
           body: reservations.isEmpty
               ? const Center(
-                  child: Text(
-                    '예약한 기구가 없습니다.',
-                    style: TextStyle(color: mutedTextColor),
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: AppEmptyPanel(text: '예약한 기구가 없습니다.'),
                   ),
                 )
               : ListView.builder(

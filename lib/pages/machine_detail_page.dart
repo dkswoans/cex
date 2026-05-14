@@ -6,6 +6,7 @@ import '../models/reservation_model.dart';
 import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
 import '../utils/time_utils.dart';
+import '../widgets/app_design.dart';
 import '../widgets/status_badge.dart';
 
 class MachineDetailPage extends StatelessWidget {
@@ -41,123 +42,117 @@ class MachineDetailPage extends StatelessWidget {
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+              AppRecordCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                machine.name,
+                                style: AppTextStyles.itemTitle,
+                              ),
+                              if (machine.description != null) ...[
+                                const SizedBox(height: 4),
                                 Text(
-                                  machine.name,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineSmall
-                                      ?.copyWith(
-                                        color: textColor,
-                                        fontWeight: FontWeight.w900,
-                                      ),
+                                  machine.description!,
+                                  style: AppTextStyles.label,
                                 ),
-                                if (machine.description != null) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    machine.description!,
-                                    style: const TextStyle(
-                                      color: mutedTextColor,
-                                    ),
-                                  ),
-                                ],
                               ],
-                            ),
+                            ],
                           ),
-                          StatusBadge(status: machine.status),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      _InfoRow(
-                        label: '최대 사용 시간',
-                        value: '${machine.maxUseMinutes}분',
-                      ),
-                      _InfoRow(
-                        label: '현재 사용자',
-                        value: machine.currentUserName ?? '-',
-                      ),
-                      _InfoRow(
-                        label: '시작 시간',
-                        value: formatTimeOnly(machine.startedAt),
-                      ),
-                      _InfoRow(
-                        label: '종료 예정',
-                        value: formatTimeOnly(machine.endAt),
-                      ),
-                      _InfoRow(
-                        label: '남은 시간',
-                        value: formatRemainingMinutes(
-                          provider.getRemainingMinutes(machine),
                         ),
+                        StatusBadge(status: machine.status),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    AppInfoRow(
+                      label: '최대 사용 시간',
+                      value: '${machine.maxUseMinutes}분',
+                    ),
+                    AppInfoRow(
+                      label: '현재 사용자',
+                      value: machine.currentUserName ?? '-',
+                    ),
+                    AppInfoRow(
+                      label: '시작 시간',
+                      value: formatTimeOnly(machine.startedAt),
+                    ),
+                    AppInfoRow(
+                      label: '종료 예정',
+                      value: formatTimeOnly(machine.endAt),
+                    ),
+                    AppInfoRow(
+                      label: '남은 시간',
+                      value: formatRemainingMinutes(
+                        provider.getRemainingMinutes(machine),
                       ),
-                      _InfoRow(
-                        label: '대기 인원',
-                        value: '${provider.getWaitingCount(machineId)}명',
-                      ),
-                    ],
-                  ),
+                    ),
+                    AppInfoRow(
+                      label: '대기 인원',
+                      value: '${provider.getWaitingCount(machineId)}명',
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                '대기자 목록',
-                style: TextStyle(
-                  color: textColor,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 8),
+              const AppSectionTitle('대기자 목록'),
               if (reservations.isEmpty)
-                const _EmptyPanel(text: '대기자가 없습니다.')
+                const AppEmptyPanel(text: '대기자가 없습니다.')
               else
                 ...reservations.map(
-                  (reservation) => Card(
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: lightGrayColor,
-                        foregroundColor: textColor,
-                        child: Text('${reservation.order}'),
-                      ),
-                      title: Text(
-                        reservation.userName,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      subtitle: Text(reservationStatusText(reservation.status)),
-                      trailing: reservation.userId == currentUser?.userId
-                          ? TextButton(
-                              onPressed: () async {
-                                final message = await provider
-                                    .cancelReservation(
-                                      reservation.reservationId,
-                                    );
-                                if (!context.mounted) return;
-                                _showMessage(context, message);
-                              },
-                              child: const Text(
-                                '예약 취소',
-                                style: TextStyle(color: redColor),
+                  (reservation) => AppRecordCard(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: lightGrayColor,
+                          foregroundColor: textColor,
+                          child: Text(
+                            '${reservation.order}',
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                reservation.userName,
+                                style: AppTextStyles.itemTitle,
                               ),
-                            )
-                          : null,
+                              const SizedBox(height: 3),
+                              Text(
+                                reservationStatusText(reservation.status),
+                                style: AppTextStyles.label,
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (reservation.userId == currentUser?.userId)
+                          TextButton(
+                            onPressed: () async {
+                              final message = await provider.cancelReservation(
+                                reservation.reservationId,
+                              );
+                              if (!context.mounted) return;
+                              _showMessage(context, message);
+                            },
+                            child: const Text('예약 취소'),
+                          ),
+                      ],
                     ),
                   ),
                 ),
               const SizedBox(height: 16),
               if (machine.status == MachineStatus.repair)
-                const _EmptyPanel(text: '점검 중인 기구입니다.')
+                const AppEmptyPanel(text: '점검 중인 기구입니다.')
               else
                 _ActionButtons(
                   canStart: canStart,
@@ -382,55 +377,6 @@ class _Button extends StatelessWidget {
         backgroundColor: isDanger ? redColor : blueColor,
       ),
       child: Text(label),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 112,
-            child: Text(label, style: const TextStyle(color: mutedTextColor)),
-          ),
-          Expanded(
-            child: Text(value, style: const TextStyle(color: textColor)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyPanel extends StatelessWidget {
-  const _EmptyPanel({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        border: Border.all(color: borderColor),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: mutedTextColor),
-      ),
     );
   }
 }

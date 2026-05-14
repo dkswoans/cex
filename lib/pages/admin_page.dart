@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/machine_model.dart';
 import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
+import '../widgets/app_design.dart';
 import '../widgets/status_badge.dart';
 
 class AdminPage extends StatelessWidget {
@@ -37,10 +38,7 @@ class AdminPage extends StatelessWidget {
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              const Text(
-                '기구 상태와 지도 좌표를 확인합니다.',
-                style: TextStyle(color: mutedTextColor, fontSize: 14),
-              ),
+              const Text('기구 상태와 지도 좌표를 확인합니다.', style: AppTextStyles.label),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -62,62 +60,58 @@ class AdminPage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              const Text(
-                '기구 목록',
-                style: TextStyle(
-                  color: textColor,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 8),
+              const AppSectionTitle('기구 목록'),
               ...provider.machines.map(
-                (machine) => Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                machine.name,
-                                style: const TextStyle(
-                                  color: textColor,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
+                (machine) => AppRecordCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              machine.name,
+                              style: AppTextStyles.itemTitle,
                             ),
-                            StatusBadge(status: machine.status),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text('최대 사용 시간: ${machine.maxUseMinutes}분'),
-                        Text('현재 사용자: ${machine.currentUserName ?? '-'}'),
-                        Text(
-                          '대기 인원: ${provider.getWaitingCount(machine.machineId)}명',
-                        ),
-                        Text(
-                          '지도 좌표: ${machine.mapX.toStringAsFixed(2)}, ${machine.mapY.toStringAsFixed(2)}',
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            OutlinedButton(
-                              onPressed: () => _comingSoon(context),
-                              child: const Text('수정'),
-                            ),
-                            OutlinedButton(
-                              onPressed: () => _comingSoon(context),
-                              child: const Text('점검 전환'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                          ),
+                          StatusBadge(status: machine.status),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      AppInfoRow(
+                        label: '최대 사용 시간',
+                        value: '${machine.maxUseMinutes}분',
+                      ),
+                      AppInfoRow(
+                        label: '현재 사용자',
+                        value: machine.currentUserName ?? '-',
+                      ),
+                      AppInfoRow(
+                        label: '대기 인원',
+                        value:
+                            '${provider.getWaitingCount(machine.machineId)}명',
+                      ),
+                      AppInfoRow(
+                        label: '지도 좌표',
+                        value:
+                            '${machine.mapX.toStringAsFixed(2)}, ${machine.mapY.toStringAsFixed(2)}',
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => _comingSoon(context),
+                            child: const Text('수정'),
+                          ),
+                          OutlinedButton(
+                            onPressed: () => _comingSoon(context),
+                            child: const Text('점검 전환'),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -168,7 +162,7 @@ class _MetricCard extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: mutedTextColor, fontSize: 12),
+            style: AppTextStyles.label.copyWith(fontSize: 12),
           ),
         ],
       ),

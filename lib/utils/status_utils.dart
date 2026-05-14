@@ -26,18 +26,18 @@ Color machineStatusColor(MachineStatus status) {
 
 String machineStatusText(MachineStatus status) {
   return switch (status) {
-    MachineStatus.available => '쌉가능',
-    MachineStatus.using => '누가씀',
-    MachineStatus.reserved => '찜당함',
-    MachineStatus.repair => '고장남',
+    MachineStatus.available => '사용 가능',
+    MachineStatus.using => '사용 중',
+    MachineStatus.reserved => '예약됨',
+    MachineStatus.repair => '점검 중',
   };
 }
 
 String reservationStatusText(ReservationStatus status) {
   return switch (status) {
-    ReservationStatus.waiting => '기다려',
-    ReservationStatus.active => '니차례',
-    ReservationStatus.completed => '끝남',
-    ReservationStatus.cancelled => '런함',
+    ReservationStatus.waiting => '대기 중',
+    ReservationStatus.active => '사용 가능',
+    ReservationStatus.completed => '완료',
+    ReservationStatus.cancelled => '취소됨',
   };
 }
