@@ -146,7 +146,7 @@ class GymProvider extends ChangeNotifier {
                       reservation.status == ReservationStatus.active),
             )
             .toList()
-          ..sort((a, b) => a.order.compareTo(b.order));
+          ..sort(_compareReservationsByStartTime);
     return result;
   }
 
@@ -162,7 +162,7 @@ class GymProvider extends ChangeNotifier {
                       reservation.status == ReservationStatus.active),
             )
             .toList()
-          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          ..sort(_compareReservationsByStartTime);
     return result;
   }
 
@@ -210,10 +210,20 @@ class GymProvider extends ChangeNotifier {
       return '최대 2개까지만 예약할 수 있습니다.';
     }
 
+    final endAt = startAt.add(Duration(minutes: minutes));
+    final hasOverlap = getMyReservations().any(
+      (reservation) =>
+          _reservationOverlaps(reservation, startAt: startAt, endAt: endAt),
+    );
+    if (hasOverlap) {
+      return '이미 같은 시간대에 예약한 기구가 있습니다.';
+    }
+
     final queue = reservations.where(
       (reservation) =>
           reservation.machineId == machineId &&
-          reservation.status == ReservationStatus.active,
+          (reservation.status == ReservationStatus.waiting ||
+              reservation.status == ReservationStatus.active),
     );
     final order = queue.length + 1;
     final now = DateTime.now();
@@ -228,7 +238,7 @@ class GymProvider extends ChangeNotifier {
       createdAt: now,
       order: order,
       reservedStartAt: startAt,
-      reservedEndAt: startAt.add(Duration(minutes: minutes)),
+      reservedEndAt: endAt,
       claimExpiresAt: startAt.add(const Duration(minutes: 1)),
     );
 
@@ -483,6 +493,25 @@ class GymProvider extends ChangeNotifier {
       15,
       remainingUntilClose,
     ].reduce((value, element) => value < element ? value : element);
+  }
+
+  int _compareReservationsByStartTime(ReservationModel a, ReservationModel b) {
+    final startComparison = (a.reservedStartAt ?? a.createdAt).compareTo(
+      b.reservedStartAt ?? b.createdAt,
+    );
+    if (startComparison != 0) return startComparison;
+    return a.createdAt.compareTo(b.createdAt);
+  }
+
+  bool _reservationOverlaps(
+    ReservationModel reservation, {
+    required DateTime startAt,
+    required DateTime endAt,
+  }) {
+    final existingStartAt = reservation.reservedStartAt;
+    final existingEndAt = reservation.reservedEndAt;
+    if (existingStartAt == null || existingEndAt == null) return false;
+    return startAt.isBefore(existingEndAt) && endAt.isAfter(existingStartAt);
   }
 
   void _startReservationTimer() {

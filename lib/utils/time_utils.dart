@@ -14,6 +14,10 @@ String formatTimeOnly(DateTime? dateTime) {
   return '$hour:$minute';
 }
 
+String formatTimeRange(DateTime? startAt, DateTime? endAt) {
+  return '${formatTimeOnly(startAt)} - ${formatTimeOnly(endAt)}';
+}
+
 String formatRemainingMinutes(int minutes) {
   if (minutes <= 0) return '0분';
   if (minutes < 60) return '$minutes분';

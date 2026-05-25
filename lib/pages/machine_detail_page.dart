@@ -103,8 +103,8 @@ class MachineDetailPage extends StatelessWidget {
               if (reservations.isEmpty)
                 const AppEmptyPanel(text: '대기자가 없습니다.')
               else
-                ...reservations.map(
-                  (reservation) => AppRecordCard(
+                ...reservations.asMap().entries.map(
+                  (entry) => AppRecordCard(
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -112,7 +112,7 @@ class MachineDetailPage extends StatelessWidget {
                           backgroundColor: lightGrayColor,
                           foregroundColor: textColor,
                           child: Text(
-                            '${reservation.order}',
+                            '${entry.key + 1}',
                             style: const TextStyle(fontWeight: FontWeight.w900),
                           ),
                         ),
@@ -122,22 +122,30 @@ class MachineDetailPage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                reservation.userName,
+                                entry.value.userName,
                                 style: AppTextStyles.itemTitle,
                               ),
                               const SizedBox(height: 3),
                               Text(
-                                reservationStatusText(reservation.status),
+                                formatTimeRange(
+                                  entry.value.reservedStartAt,
+                                  entry.value.reservedEndAt,
+                                ),
+                                style: AppTextStyles.value,
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                reservationStatusText(entry.value.status),
                                 style: AppTextStyles.label,
                               ),
                             ],
                           ),
                         ),
-                        if (reservation.userId == currentUser?.userId)
+                        if (entry.value.userId == currentUser?.userId)
                           TextButton(
                             onPressed: () async {
                               final message = await provider.cancelReservation(
-                                reservation.reservationId,
+                                entry.value.reservationId,
                               );
                               if (!context.mounted) return;
                               _showMessage(context, message);

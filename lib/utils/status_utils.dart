@@ -28,15 +28,15 @@ String machineStatusText(MachineStatus status) {
   return switch (status) {
     MachineStatus.available => '사용 가능',
     MachineStatus.using => '사용 중',
-    MachineStatus.reserved => '예약됨',
+    MachineStatus.reserved => '찜당함',
     MachineStatus.repair => '점검 중',
   };
 }
 
 String reservationStatusText(ReservationStatus status) {
   return switch (status) {
-    ReservationStatus.waiting => '대기 중',
-    ReservationStatus.active => '사용 가능',
+    ReservationStatus.waiting => '예약 대기',
+    ReservationStatus.active => '찜당함',
     ReservationStatus.completed => '완료',
     ReservationStatus.cancelled => '취소됨',
   };

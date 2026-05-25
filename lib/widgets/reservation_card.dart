@@ -47,7 +47,10 @@ class ReservationCard extends StatelessWidget {
           ),
           AppInfoRow(
             label: '예약 시간',
-            value: formatDateTime(reservation.reservedStartAt),
+            value: formatTimeRange(
+              reservation.reservedStartAt,
+              reservation.reservedEndAt,
+            ),
           ),
           const SizedBox(height: 12),
           SizedBox(
