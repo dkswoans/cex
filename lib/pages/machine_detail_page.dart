@@ -26,11 +26,9 @@ class MachineDetailPage extends StatelessWidget {
             currentUser != null &&
             machine.currentUserId != null &&
             machine.currentUserId == currentUser.userId;
-        final maxUseMinutes = provider.getAvailableUseMinutesNow(machine);
         final canStart =
             machine.status == MachineStatus.available ||
-            (machine.status == MachineStatus.reserved &&
-                myReservation?.status == ReservationStatus.active);
+            myReservation?.status == ReservationStatus.active;
         final canReserve =
             machine.status != MachineStatus.repair &&
             !isCurrentUserUsing &&
@@ -160,23 +158,7 @@ class MachineDetailPage extends StatelessWidget {
                   canCancel: myReservation != null,
                   canFinish: isCurrentUserUsing,
                   onStart: () async {
-                    if (maxUseMinutes <= 0) {
-                      _showMessage(context, '사용은 21:00부터 22:50 안에서만 가능합니다.');
-                      return;
-                    }
-                    final minutes = await _askMinutes(
-                      context,
-                      title: '사용 시간',
-                      maxMinutes: maxUseMinutes,
-                      initialMinutes: maxUseMinutes,
-                      helperText: '1분부터 $maxUseMinutes분까지 사용할 수 있습니다.',
-                      confirmLabel: '사용하기',
-                    );
-                    if (minutes == null) return;
-                    final message = await provider.startUsingMachine(
-                      machineId,
-                      minutes: minutes,
-                    );
+                    final message = await provider.startUsingMachine(machineId);
                     if (!context.mounted) return;
                     _showMessage(context, message);
                   },
@@ -219,26 +201,6 @@ class MachineDetailPage extends StatelessWidget {
     return showDialog<_ReservationRequest>(
       context: context,
       builder: (_) => const _ReservationDialog(),
-    );
-  }
-
-  Future<int?> _askMinutes(
-    BuildContext context, {
-    required String title,
-    required int maxMinutes,
-    required int initialMinutes,
-    required String helperText,
-    required String confirmLabel,
-  }) {
-    return showDialog<int>(
-      context: context,
-      builder: (_) => _MinutesDialog(
-        title: title,
-        maxMinutes: maxMinutes,
-        initialMinutes: initialMinutes,
-        helperText: helperText,
-        confirmLabel: confirmLabel,
-      ),
     );
   }
 
@@ -338,18 +300,6 @@ class _ReservationDialogState extends State<_ReservationDialog> {
     }
 
     final startAt = _todayKoreaTimeAsUtc(_startTime.hour, _startTime.minute);
-    final endKst = _koreaTime(startAt).add(Duration(minutes: minutes));
-    if (_startTime.hour < 21 ||
-        _startTime.hour > 22 ||
-        (_startTime.hour == 22 && _startTime.minute > 50) ||
-        endKst.hour > 22 ||
-        (endKst.hour == 22 && endKst.minute > 50)) {
-      setState(() {
-        _errorText = '예약은 21:00부터 22:50 안에서만 가능합니다.';
-      });
-      return;
-    }
-
     FocusScope.of(context).unfocus();
     Navigator.of(
       context,
