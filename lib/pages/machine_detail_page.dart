@@ -21,12 +21,11 @@ class MachineDetailPage extends StatelessWidget {
         final machine = provider.getMachineById(machineId);
         final currentUser = provider.currentUser;
         final reservations = provider.getReservationsByMachine(machineId);
-        final activeReservations = provider.getActiveReservationsByMachine(
-          machineId,
-        );
+        final activeReservations = provider.getCurrentUsersByMachine(machineId);
         final myReservation = provider.getMyReservationForMachine(machineId);
         final isCurrentUserUsing = provider.isUserUsingMachine(machineId);
         final capacity = provider.getMachineCapacity(machineId);
+        final isMultiUnitMachine = capacity > 1;
         final maxUseMinutes = provider.getMaxUseMinutesForMachine(machineId);
         final maxReservationMinutes = provider
             .getMaxReservationMinutesForMachine(machineId);
@@ -79,20 +78,22 @@ class MachineDetailPage extends StatelessWidget {
                     const SizedBox(height: 16),
                     AppInfoRow(label: '최대 사용 시간', value: '$maxUseMinutes분'),
                     AppInfoRow(label: '현재 사용자', value: activeUserText),
-                    AppInfoRow(
-                      label: '시작 시간',
-                      value: formatTimeOnly(machine.startedAt),
-                    ),
-                    AppInfoRow(
-                      label: '종료 예정',
-                      value: formatTimeOnly(machine.endAt),
-                    ),
-                    AppInfoRow(
-                      label: '남은 시간',
-                      value: formatRemainingMinutes(
-                        provider.getRemainingMinutes(machine),
+                    if (!isMultiUnitMachine) ...[
+                      AppInfoRow(
+                        label: '시작 시간',
+                        value: formatTimeOnly(machine.startedAt),
                       ),
-                    ),
+                      AppInfoRow(
+                        label: '종료 예정',
+                        value: formatTimeOnly(machine.endAt),
+                      ),
+                      AppInfoRow(
+                        label: '남은 시간',
+                        value: formatRemainingMinutes(
+                          provider.getRemainingMinutes(machine),
+                        ),
+                      ),
+                    ],
                     AppInfoRow(
                       label: '대기 인원',
                       value: '${provider.getWaitingCount(machineId)}명',
@@ -100,6 +101,48 @@ class MachineDetailPage extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
+              AppSectionTitle(isMultiUnitMachine ? '현재 사용 현황' : '현재 사용자'),
+              if (activeReservations.isEmpty)
+                const AppEmptyPanel(text: '현재 사용 중인 사람이 없습니다.')
+              else
+                ...activeReservations.asMap().entries.map(
+                  (entry) => AppRecordCard(
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: amberColor,
+                          foregroundColor: textColor,
+                          child: Text(
+                            '${entry.key + 1}',
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                entry.value.userName,
+                                style: AppTextStyles.itemTitle,
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                formatTimeRange(
+                                  entry.value.reservedStartAt,
+                                  entry.value.reservedEndAt,
+                                ),
+                                style: AppTextStyles.value,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text('사용 중', style: AppTextStyles.label),
+                      ],
+                    ),
+                  ),
+                ),
               const SizedBox(height: 16),
               const AppSectionTitle('대기자 목록'),
               if (reservations.isEmpty)
@@ -136,10 +179,7 @@ class MachineDetailPage extends StatelessWidget {
                                 style: AppTextStyles.value,
                               ),
                               const SizedBox(height: 3),
-                              Text(
-                                reservationStatusText(entry.value.status),
-                                style: AppTextStyles.label,
-                              ),
+                              Text('사용 중', style: AppTextStyles.label),
                             ],
                           ),
                         ),

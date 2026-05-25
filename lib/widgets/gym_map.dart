@@ -10,11 +10,13 @@ class GymMap extends StatelessWidget {
     required this.machines,
     required this.onMachineTap,
     required this.getWaitingCount,
+    required this.getMarkerSummary,
   });
 
   final List<MachineModel> machines;
   final ValueChanged<MachineModel> onMachineTap;
   final int Function(String machineId) getWaitingCount;
+  final String Function(String machineId) getMarkerSummary;
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +103,7 @@ class GymMap extends StatelessWidget {
                       machine: machine,
                       isSelected: false,
                       waitingCount: getWaitingCount(machine.machineId),
+                      summaryText: getMarkerSummary(machine.machineId),
                       onTap: () => onMachineTap(machine),
                     ),
                   );

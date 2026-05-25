@@ -11,6 +11,7 @@ import '../services/supabase_config.dart';
 
 class GymProvider extends ChangeNotifier {
   static const bool _bypassBusinessHoursForTesting = true;
+  static const String _multiUserSeparator = '|';
 
   GymProvider() {
     syncFromDatabase();
@@ -192,7 +193,7 @@ class GymProvider extends ChangeNotifier {
         machines.any(
           (machine) =>
               machine.machineId == machineId &&
-              machine.currentUserId == user.userId,
+              _splitMultiValue(machine.currentUserId).contains(user.userId),
         );
   }
 
@@ -207,6 +208,41 @@ class GymProvider extends ChangeNotifier {
             .toList()
           ..sort(_compareReservationsByStartTime);
     return result;
+  }
+
+  List<ReservationModel> getCurrentUsersByMachine(String machineId) {
+    final machine = getMachineById(machineId);
+    final result = [...getActiveReservationsByMachine(machineId)];
+    final ids = _splitMultiValue(machine.currentUserId);
+    final names = _splitMultiValue(machine.currentUserName);
+    final now = DateTime.now();
+    for (var index = 0; index < ids.length; index++) {
+      final userId = ids[index];
+      if (result.any((reservation) => reservation.userId == userId)) {
+        continue;
+      }
+      result.add(
+        ReservationModel(
+          reservationId: '${machineId}_${userId}_direct',
+          machineId: machine.machineId,
+          machineName: machine.name,
+          userId: userId,
+          userName: index < names.length ? names[index] : userId,
+          status: ReservationStatus.active,
+          createdAt: machine.startedAt ?? now,
+          order: result.length + 1,
+          reservedStartAt: machine.startedAt,
+          reservedEndAt: machine.endAt,
+          claimExpiresAt: machine.startedAt,
+        ),
+      );
+    }
+    result.sort(_compareReservationsByStartTime);
+    return result;
+  }
+
+  int getActiveCount(String machineId) {
+    return getCurrentUsersByMachine(machineId).length;
   }
 
   int getMachineCapacity(String machineId) {
@@ -233,6 +269,21 @@ class GymProvider extends ChangeNotifier {
       endAt: now.add(const Duration(minutes: 1)),
     );
     return activeCount < getMachineCapacity(machineId);
+  }
+
+  int getRemainingUnitCount(String machineId) {
+    final remaining = getMachineCapacity(machineId) - getActiveCount(machineId);
+    return remaining < 0 ? 0 : remaining;
+  }
+
+  String getMachineMapSummary(String machineId) {
+    final capacity = getMachineCapacity(machineId);
+    if (capacity <= 1) {
+      final waitingCount = getWaitingCount(machineId);
+      return waitingCount > 0 ? '대기 $waitingCount' : '대기 0';
+    }
+    final activeCount = getActiveCount(machineId);
+    return '$activeCount/$capacity';
   }
 
   Future<String> reserveMachine(
@@ -386,7 +437,8 @@ class GymProvider extends ChangeNotifier {
         ) ||
         machines.any(
           (item) =>
-              item.currentUserId == user.userId && item.machineId != machineId,
+              _splitMultiValue(item.currentUserId).contains(user.userId) &&
+              item.machineId != machineId,
         );
     if (usingOther) return '이미 다른 기구를 사용 중입니다.';
 
@@ -423,12 +475,18 @@ class GymProvider extends ChangeNotifier {
         }
       }
 
+      final currentUserIds = _splitMultiValue(machine.currentUserId);
+      final currentUserNames = _splitMultiValue(machine.currentUserName);
+      if (!currentUserIds.contains(user.userId)) {
+        currentUserIds.add(user.userId);
+        currentUserNames.add(user.name);
+      }
       final updatedMachine = machine.copyWith(
         status: MachineStatus.using,
-        currentUserId: user.userId,
-        currentUserName: user.name,
-        startedAt: now,
-        endAt: endAt,
+        currentUserId: _joinMultiValue(currentUserIds),
+        currentUserName: _joinMultiValue(currentUserNames),
+        startedAt: machine.startedAt ?? now,
+        endAt: _latestDateTime(machine.endAt, endAt),
       );
       await _updateMachine(updatedMachine);
       _replaceLocalMachine(updatedMachine);
@@ -452,7 +510,8 @@ class GymProvider extends ChangeNotifier {
               reservation.status == ReservationStatus.active,
         )
         .firstOrNull;
-    if (userActiveReservation == null && machine.currentUserId != user.userId) {
+    if (userActiveReservation == null &&
+        !_splitMultiValue(machine.currentUserId).contains(user.userId)) {
       return '본인이 사용 중인 기구만 종료할 수 있습니다.';
     }
 
@@ -497,14 +556,26 @@ class GymProvider extends ChangeNotifier {
             reservation.status == ReservationStatus.active &&
             reservation.reservationId != userActiveReservation?.reservationId,
       );
+      final currentUserIds = _splitMultiValue(machine.currentUserId);
+      final currentUserNames = _splitMultiValue(machine.currentUserName);
+      final removeIndex = currentUserIds.indexOf(user.userId);
+      if (removeIndex != -1) {
+        currentUserIds.removeAt(removeIndex);
+        if (removeIndex < currentUserNames.length) {
+          currentUserNames.removeAt(removeIndex);
+        }
+      }
+      final hasDirectUsers = currentUserIds.isNotEmpty;
 
       await _updateMachine(
         machine.copyWith(
-          status: hasOtherActiveUsers
+          status: hasOtherActiveUsers || hasDirectUsers
               ? MachineStatus.reserved
               : MachineStatus.available,
-          clearCurrentUser: true,
-          clearTimes: true,
+          currentUserId: _joinMultiValue(currentUserIds),
+          currentUserName: _joinMultiValue(currentUserNames),
+          clearCurrentUser: !hasDirectUsers,
+          clearTimes: !hasOtherActiveUsers && !hasDirectUsers,
         ),
       );
 
@@ -589,6 +660,29 @@ class GymProvider extends ChangeNotifier {
     final existingEndAt = reservation.reservedEndAt;
     if (existingStartAt == null || existingEndAt == null) return false;
     return startAt.isBefore(existingEndAt) && endAt.isAfter(existingStartAt);
+  }
+
+  List<String> _splitMultiValue(String? value) {
+    if (value == null || value.isEmpty) return [];
+    return value
+        .split(_multiUserSeparator)
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
+
+  String? _joinMultiValue(List<String> values) {
+    final cleanValues = values
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+    if (cleanValues.isEmpty) return null;
+    return cleanValues.join(_multiUserSeparator);
+  }
+
+  DateTime _latestDateTime(DateTime? first, DateTime second) {
+    if (first == null) return second;
+    return first.isAfter(second) ? first : second;
   }
 
   int _overlappingReservationCount(

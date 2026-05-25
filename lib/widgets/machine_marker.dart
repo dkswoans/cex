@@ -9,12 +9,14 @@ class MachineMarker extends StatelessWidget {
     required this.machine,
     required this.isSelected,
     required this.waitingCount,
+    required this.summaryText,
     required this.onTap,
   });
 
   final MachineModel machine;
   final bool isSelected;
   final int waitingCount;
+  final String summaryText;
   final VoidCallback onTap;
 
   @override
@@ -77,11 +79,11 @@ class MachineMarker extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   _MarkerSubText(
-                    text: markerDescription ?? '대기$waitingCount',
+                    text: markerDescription ?? summaryText,
                     color: redColor,
                   ),
                   if (markerDescription != null && waitingCount > 0)
-                    _MarkerSubText(text: '대기$waitingCount', color: textColor),
+                    _MarkerSubText(text: summaryText, color: textColor),
                 ],
               ),
             ),

@@ -77,6 +77,7 @@ class HomePage extends StatelessWidget {
                           );
                         },
                         getWaitingCount: provider.getWaitingCount,
+                        getMarkerSummary: provider.getMachineMapSummary,
                       ),
                     ),
                   ],
