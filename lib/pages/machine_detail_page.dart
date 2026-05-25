@@ -21,14 +21,22 @@ class MachineDetailPage extends StatelessWidget {
         final machine = provider.getMachineById(machineId);
         final currentUser = provider.currentUser;
         final reservations = provider.getReservationsByMachine(machineId);
+        final activeReservations = provider.getActiveReservationsByMachine(
+          machineId,
+        );
         final myReservation = provider.getMyReservationForMachine(machineId);
-        final isCurrentUserUsing =
-            currentUser != null &&
-            machine.currentUserId != null &&
-            machine.currentUserId == currentUser.userId;
+        final isCurrentUserUsing = provider.isUserUsingMachine(machineId);
+        final capacity = provider.getMachineCapacity(machineId);
+        final maxUseMinutes = provider.getMaxUseMinutesForMachine(machineId);
+        final maxReservationMinutes = provider
+            .getMaxReservationMinutesForMachine(machineId);
+        final activeUserText = activeReservations.isEmpty
+            ? machine.currentUserName ?? '-'
+            : '${activeReservations.map((reservation) => reservation.userName).join(', ')} (${activeReservations.length}/$capacity)';
         final canStart =
-            machine.status == MachineStatus.available ||
-            myReservation?.status == ReservationStatus.active;
+            !isCurrentUserUsing &&
+            (myReservation?.status == ReservationStatus.active ||
+                provider.hasAvailableUnitNow(machineId));
         final canReserve =
             machine.status != MachineStatus.repair &&
             !isCurrentUserUsing &&
@@ -69,14 +77,8 @@ class MachineDetailPage extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    AppInfoRow(
-                      label: '최대 사용 시간',
-                      value: '${machine.maxUseMinutes}분',
-                    ),
-                    AppInfoRow(
-                      label: '현재 사용자',
-                      value: machine.currentUserName ?? '-',
-                    ),
+                    AppInfoRow(label: '최대 사용 시간', value: '$maxUseMinutes분'),
+                    AppInfoRow(label: '현재 사용자', value: activeUserText),
                     AppInfoRow(
                       label: '시작 시간',
                       value: formatTimeOnly(machine.startedAt),
@@ -166,12 +168,27 @@ class MachineDetailPage extends StatelessWidget {
                   canCancel: myReservation != null,
                   canFinish: isCurrentUserUsing,
                   onStart: () async {
-                    final message = await provider.startUsingMachine(machineId);
+                    final minutes = await _askMinutes(
+                      context,
+                      title: '사용 시간',
+                      maxMinutes: maxUseMinutes,
+                      initialMinutes: maxUseMinutes,
+                      helperText: '1분부터 $maxUseMinutes분까지 사용할 수 있습니다.',
+                      confirmLabel: '사용하기',
+                    );
+                    if (minutes == null) return;
+                    final message = await provider.startUsingMachine(
+                      machineId,
+                      minutes: minutes,
+                    );
                     if (!context.mounted) return;
                     _showMessage(context, message);
                   },
                   onReserve: () async {
-                    final request = await _askReservation(context);
+                    final request = await _askReservation(
+                      context,
+                      maxMinutes: maxReservationMinutes,
+                    );
                     if (request == null) return;
                     final message = await provider.reserveMachine(
                       machineId,
@@ -205,10 +222,33 @@ class MachineDetailPage extends StatelessWidget {
     );
   }
 
-  Future<_ReservationRequest?> _askReservation(BuildContext context) {
+  Future<int?> _askMinutes(
+    BuildContext context, {
+    required String title,
+    required int maxMinutes,
+    required int initialMinutes,
+    required String helperText,
+    required String confirmLabel,
+  }) {
+    return showDialog<int>(
+      context: context,
+      builder: (_) => _MinutesDialog(
+        title: title,
+        maxMinutes: maxMinutes,
+        initialMinutes: initialMinutes,
+        helperText: helperText,
+        confirmLabel: confirmLabel,
+      ),
+    );
+  }
+
+  Future<_ReservationRequest?> _askReservation(
+    BuildContext context, {
+    required int maxMinutes,
+  }) {
     return showDialog<_ReservationRequest>(
       context: context,
-      builder: (_) => const _ReservationDialog(),
+      builder: (_) => _ReservationDialog(maxMinutes: maxMinutes),
     );
   }
 
@@ -227,16 +267,26 @@ class _ReservationRequest {
 }
 
 class _ReservationDialog extends StatefulWidget {
-  const _ReservationDialog();
+  const _ReservationDialog({required this.maxMinutes});
+
+  final int maxMinutes;
 
   @override
   State<_ReservationDialog> createState() => _ReservationDialogState();
 }
 
 class _ReservationDialogState extends State<_ReservationDialog> {
-  final _minutesController = TextEditingController(text: '15');
+  late final TextEditingController _minutesController;
   TimeOfDay _startTime = const TimeOfDay(hour: 21, minute: 0);
   String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _minutesController = TextEditingController(
+      text: widget.maxMinutes.clamp(1, 30).toString(),
+    );
+  }
 
   @override
   void dispose() {
@@ -266,7 +316,7 @@ class _ReservationDialogState extends State<_ReservationDialog> {
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
               labelText: '분',
-              helperText: '1분부터 15분까지 예약할 수 있습니다.',
+              helperText: '1분부터 ${widget.maxMinutes}분까지 예약할 수 있습니다.',
               errorText: _errorText,
             ),
             onSubmitted: (_) => _submit(),
@@ -300,9 +350,9 @@ class _ReservationDialogState extends State<_ReservationDialog> {
 
   void _submit() {
     final minutes = int.tryParse(_minutesController.text.trim());
-    if (minutes == null || minutes < 1 || minutes > 15) {
+    if (minutes == null || minutes < 1 || minutes > widget.maxMinutes) {
       setState(() {
-        _errorText = '이용 시간은 1~15분으로 입력하세요.';
+        _errorText = '이용 시간은 1~${widget.maxMinutes}분으로 입력하세요.';
       });
       return;
     }

@@ -180,6 +180,61 @@ class GymProvider extends ChangeNotifier {
         .firstOrNull;
   }
 
+  bool isUserUsingMachine(String machineId) {
+    final user = currentUser;
+    if (user == null) return false;
+    return reservations.any(
+          (reservation) =>
+              reservation.machineId == machineId &&
+              reservation.userId == user.userId &&
+              reservation.status == ReservationStatus.active,
+        ) ||
+        machines.any(
+          (machine) =>
+              machine.machineId == machineId &&
+              machine.currentUserId == user.userId,
+        );
+  }
+
+  List<ReservationModel> getActiveReservationsByMachine(String machineId) {
+    final result =
+        reservations
+            .where(
+              (reservation) =>
+                  reservation.machineId == machineId &&
+                  reservation.status == ReservationStatus.active,
+            )
+            .toList()
+          ..sort(_compareReservationsByStartTime);
+    return result;
+  }
+
+  int getMachineCapacity(String machineId) {
+    return switch (machineId) {
+      'treadmill' => 9,
+      'cycle' => 4,
+      _ => 1,
+    };
+  }
+
+  int getMaxUseMinutesForMachine(String machineId) {
+    return machineId == 'treadmill' ? 30 : 15;
+  }
+
+  int getMaxReservationMinutesForMachine(String machineId) {
+    return 15;
+  }
+
+  bool hasAvailableUnitNow(String machineId) {
+    final now = DateTime.now();
+    final activeCount = _overlappingReservationCount(
+      machineId,
+      startAt: now,
+      endAt: now.add(const Duration(minutes: 1)),
+    );
+    return activeCount < getMachineCapacity(machineId);
+  }
+
   Future<String> reserveMachine(
     String machineId, {
     required int minutes,
@@ -187,7 +242,11 @@ class GymProvider extends ChangeNotifier {
   }) async {
     final user = currentUser;
     if (user == null) return '로그인이 필요합니다.';
-    if (minutes < 1 || minutes > 15) return '예약 시간은 1분부터 15분까지 가능합니다.';
+    final machine = getMachineById(machineId);
+    final maxMinutes = getMaxReservationMinutesForMachine(machineId);
+    if (minutes < 1 || minutes > maxMinutes) {
+      return '예약 시간은 1분부터 $maxMinutes분까지 가능합니다.';
+    }
 
     final reservationError = _validateBusinessWindow(
       startAt: startAt,
@@ -198,7 +257,6 @@ class GymProvider extends ChangeNotifier {
     if (reservationError != null) return reservationError;
 
     await _applyReservationWindows();
-    final machine = getMachineById(machineId);
     if (machine.status == MachineStatus.repair) {
       return '점검 중인 기구는 예약할 수 없습니다.';
     }
@@ -217,6 +275,16 @@ class GymProvider extends ChangeNotifier {
     );
     if (hasOverlap) {
       return '이미 같은 시간대에 예약한 기구가 있습니다.';
+    }
+
+    final capacity = getMachineCapacity(machineId);
+    final overlappingCount = _overlappingReservationCount(
+      machineId,
+      startAt: startAt,
+      endAt: endAt,
+    );
+    if (overlappingCount >= capacity) {
+      return '해당 시간대에 예약 가능한 자리가 없습니다.';
     }
 
     final queue = reservations.where(
@@ -277,13 +345,16 @@ class GymProvider extends ChangeNotifier {
     }
   }
 
-  Future<String> startUsingMachine(String machineId) async {
+  Future<String> startUsingMachine(
+    String machineId, {
+    required int minutes,
+  }) async {
     final user = currentUser;
     await _applyReservationWindows();
     if (user == null) return '로그인이 필요합니다.';
 
     final machine = getMachineById(machineId);
-    final maxMinutes = machine.maxUseMinutes.clamp(1, 15);
+    final maxMinutes = getMaxUseMinutesForMachine(machineId);
     final activeReservation = reservations
         .where(
           (reservation) =>
@@ -292,10 +363,10 @@ class GymProvider extends ChangeNotifier {
               reservation.status == ReservationStatus.active,
         )
         .firstOrNull;
-    final minutes = activeReservation == null ? maxMinutes : 1;
     if (minutes < 1 || minutes > maxMinutes) {
       return '사용 시간은 1분부터 $maxMinutes분까지 가능합니다.';
     }
+
     final businessError = _validateBusinessWindow(
       startAt: DateTime.now(),
       minutes: minutes,
@@ -306,32 +377,21 @@ class GymProvider extends ChangeNotifier {
       return '점검 중인 기구입니다.';
     }
 
-    final usingOther = machines.any(
-      (item) =>
-          item.currentUserId == user.userId && item.machineId != machineId,
-    );
+    final usingOther =
+        reservations.any(
+          (reservation) =>
+              reservation.userId == user.userId &&
+              reservation.machineId != machineId &&
+              reservation.status == ReservationStatus.active,
+        ) ||
+        machines.any(
+          (item) =>
+              item.currentUserId == user.userId && item.machineId != machineId,
+        );
     if (usingOther) return '이미 다른 기구를 사용 중입니다.';
 
-    if (machine.status == MachineStatus.using &&
-        machine.currentUserId != user.userId) {
-      return '현재 사용 중인 기구입니다.';
-    }
-
-    if (activeReservation == null &&
-        machine.status != MachineStatus.available) {
-      return '예약 시간이 된 예약자만 사용할 수 있습니다.';
-    }
-
-    final activeReservationForChecks = activeReservation;
-    if (machine.status == MachineStatus.reserved &&
-        activeReservationForChecks == null) {
-      return '첫 번째 예약자만 사용할 수 있습니다.';
-    }
-
-    if (machine.status != MachineStatus.available &&
-        machine.status != MachineStatus.reserved &&
-        machine.currentUserId != user.userId) {
-      return '사용을 시작할 수 없습니다.';
+    if (activeReservation == null && !hasAvailableUnitNow(machineId)) {
+      return '현재 사용 가능한 자리가 없습니다.';
     }
 
     final now = DateTime.now();
@@ -340,35 +400,38 @@ class GymProvider extends ChangeNotifier {
         (reservationEndAt == null || !reservationEndAt.isAfter(now))) {
       return '예약 사용 시간이 지났습니다.';
     }
-    final endAt = reservationEndAt ?? now.add(Duration(minutes: minutes));
-    final updatedMachine = machine.copyWith(
-      status: MachineStatus.using,
-      currentUserId: user.userId,
-      currentUserName: user.name,
-      startedAt: now,
-      endAt: endAt,
-    );
+    final requestedEndAt = now.add(Duration(minutes: minutes));
+    final endAt =
+        reservationEndAt == null || requestedEndAt.isBefore(reservationEndAt)
+        ? requestedEndAt
+        : reservationEndAt;
 
     try {
-      await _updateMachine(updatedMachine);
-      _replaceLocalMachine(updatedMachine);
-      if (activeReservationForChecks != null) {
+      if (activeReservation != null) {
         await SupabaseConfig.client
             .from('reservations')
-            .update({'status': ReservationStatus.completed.name})
-            .eq('id', activeReservationForChecks.reservationId);
+            .update({'reserved_end_at': endAt.toIso8601String()})
+            .eq('id', activeReservation.reservationId);
         final index = reservations.indexWhere(
           (reservation) =>
-              reservation.reservationId ==
-              activeReservationForChecks.reservationId,
+              reservation.reservationId == activeReservation.reservationId,
         );
         if (index != -1) {
           reservations[index] = reservations[index].copyWith(
-            status: ReservationStatus.completed,
+            reservedEndAt: endAt,
           );
         }
-        await _reorderReservations(machineId);
       }
+
+      final updatedMachine = machine.copyWith(
+        status: MachineStatus.using,
+        currentUserId: user.userId,
+        currentUserName: user.name,
+        startedAt: now,
+        endAt: endAt,
+      );
+      await _updateMachine(updatedMachine);
+      _replaceLocalMachine(updatedMachine);
       await syncFromDatabase();
       return '사용을 시작했습니다.';
     } catch (error) {
@@ -381,12 +444,21 @@ class GymProvider extends ChangeNotifier {
     if (user == null) return '로그인이 필요합니다.';
 
     final machine = getMachineById(machineId);
-    if (machine.currentUserId != user.userId) {
+    final userActiveReservation = reservations
+        .where(
+          (reservation) =>
+              reservation.machineId == machineId &&
+              reservation.userId == user.userId &&
+              reservation.status == ReservationStatus.active,
+        )
+        .firstOrNull;
+    if (userActiveReservation == null && machine.currentUserId != user.userId) {
       return '본인이 사용 중인 기구만 종료할 수 있습니다.';
     }
 
     final now = DateTime.now();
-    final startedAt = machine.startedAt ?? now;
+    final startedAt =
+        userActiveReservation?.reservedStartAt ?? machine.startedAt ?? now;
     final usageLog = UsageLogModel(
       logId: '${machineId}_${user.userId}_${now.millisecondsSinceEpoch}',
       machineId: machine.machineId,
@@ -398,38 +470,43 @@ class GymProvider extends ChangeNotifier {
       usedMinutes: now.difference(startedAt).inMinutes,
     );
 
-    final activeReservations =
-        reservations
-            .where(
-              (reservation) =>
-                  reservation.machineId == machineId &&
-                  reservation.status == ReservationStatus.active,
-            )
-            .toList()
-          ..sort((a, b) => a.order.compareTo(b.order));
-
     try {
       await SupabaseConfig.client
           .from('usage_logs')
           .insert(usageLog.toSupabase());
 
-      if (activeReservations.isEmpty) {
-        await _updateMachine(
-          machine.copyWith(
-            status: MachineStatus.available,
-            clearCurrentUser: true,
-            clearTimes: true,
-          ),
+      if (userActiveReservation != null) {
+        await SupabaseConfig.client
+            .from('reservations')
+            .update({'status': ReservationStatus.completed.name})
+            .eq('id', userActiveReservation.reservationId);
+        final index = reservations.indexWhere(
+          (reservation) =>
+              reservation.reservationId == userActiveReservation.reservationId,
         );
-      } else {
-        await _updateMachine(
-          machine.copyWith(
-            status: MachineStatus.reserved,
-            clearCurrentUser: true,
-            clearTimes: true,
-          ),
-        );
+        if (index != -1) {
+          reservations[index] = reservations[index].copyWith(
+            status: ReservationStatus.completed,
+          );
+        }
       }
+
+      final hasOtherActiveUsers = reservations.any(
+        (reservation) =>
+            reservation.machineId == machineId &&
+            reservation.status == ReservationStatus.active &&
+            reservation.reservationId != userActiveReservation?.reservationId,
+      );
+
+      await _updateMachine(
+        machine.copyWith(
+          status: hasOtherActiveUsers
+              ? MachineStatus.reserved
+              : MachineStatus.available,
+          clearCurrentUser: true,
+          clearTimes: true,
+        ),
+      );
 
       await syncFromDatabase();
       return '사용을 종료했습니다.';
@@ -514,6 +591,22 @@ class GymProvider extends ChangeNotifier {
     return startAt.isBefore(existingEndAt) && endAt.isAfter(existingStartAt);
   }
 
+  int _overlappingReservationCount(
+    String machineId, {
+    required DateTime startAt,
+    required DateTime endAt,
+  }) {
+    return reservations
+        .where(
+          (reservation) =>
+              reservation.machineId == machineId &&
+              (reservation.status == ReservationStatus.waiting ||
+                  reservation.status == ReservationStatus.active) &&
+              _reservationOverlaps(reservation, startAt: startAt, endAt: endAt),
+        )
+        .length;
+  }
+
   void _startReservationTimer() {
     _reservationTimer?.cancel();
     _reservationTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
@@ -541,12 +634,10 @@ class GymProvider extends ChangeNotifier {
         }
 
         final startAt = reservation.reservedStartAt;
-        if (startAt == null) continue;
-        final claimExpiresAt =
-            reservation.claimExpiresAt ??
-            startAt.add(const Duration(minutes: 1));
+        final endAt = reservation.reservedEndAt;
+        if (startAt == null || endAt == null) continue;
 
-        if (now.isAfter(claimExpiresAt)) {
+        if (now.isAfter(endAt)) {
           await SupabaseConfig.client
               .from('reservations')
               .update({'status': ReservationStatus.cancelled.name})
@@ -559,9 +650,9 @@ class GymProvider extends ChangeNotifier {
           continue;
         }
 
-        final isClaimWindow =
-            !now.isBefore(startAt) && !now.isAfter(claimExpiresAt);
-        if (isClaimWindow && reservation.status == ReservationStatus.waiting) {
+        final isReservedWindow = !now.isBefore(startAt) && now.isBefore(endAt);
+        if (isReservedWindow &&
+            reservation.status == ReservationStatus.waiting) {
           await SupabaseConfig.client
               .from('reservations')
               .update({'status': ReservationStatus.active.name})
@@ -675,13 +766,18 @@ class GymProvider extends ChangeNotifier {
 
   Future<void> _refreshMachineReservationState(String machineId) async {
     final machine = getMachineById(machineId);
-    if (machine.status == MachineStatus.using ||
-        machine.status == MachineStatus.repair) {
+    if (machine.status == MachineStatus.repair) {
       return;
     }
-    final queue = getReservationsByMachine(machineId);
+    final hasActiveReservation = reservations.any(
+      (reservation) =>
+          reservation.machineId == machineId &&
+          reservation.status == ReservationStatus.active,
+    );
     final updatedMachine = machine.copyWith(
-      status: queue.isEmpty ? MachineStatus.available : MachineStatus.reserved,
+      status: hasActiveReservation
+          ? MachineStatus.reserved
+          : MachineStatus.available,
     );
     await _updateMachine(updatedMachine);
     final index = machines.indexWhere((item) => item.machineId == machineId);
