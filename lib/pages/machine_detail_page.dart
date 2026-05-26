@@ -27,6 +27,7 @@ class MachineDetailPage extends StatelessWidget {
         final capacity = provider.getMachineCapacity(machineId);
         final isMultiUnitMachine = capacity > 1;
         final variants = provider.getMachineVariants(machineId);
+        final hasVariants = variants.isNotEmpty;
         final maxUseMinutes = provider.getMaxUseMinutesForMachine(machineId);
         final maxReservationMinutes = provider
             .getMaxReservationMinutesForMachine(machineId);
@@ -80,7 +81,7 @@ class MachineDetailPage extends StatelessWidget {
                     const SizedBox(height: 16),
                     AppInfoRow(label: '최대 사용 시간', value: '$maxUseMinutes분'),
                     AppInfoRow(label: '현재 사용자', value: activeUserText),
-                    if (!isMultiUnitMachine) ...[
+                    if (!isMultiUnitMachine && !hasVariants) ...[
                       AppInfoRow(
                         label: '시작 시간',
                         value: formatTimeOnly(machine.startedAt),
@@ -586,8 +587,10 @@ class _ActionButtons extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      alignment: WrapAlignment.center,
+      runAlignment: WrapAlignment.center,
+      spacing: 16,
+      runSpacing: 12,
       children: [
         if (canStart) _Button(label: '사용 시작', onPressed: onStart),
         if (canReserve) _Button(label: '예약하기', onPressed: onReserve),

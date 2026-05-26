@@ -183,6 +183,26 @@ class GymProvider extends ChangeNotifier {
 
   List<String> getMachineVariants(String machineId) {
     return switch (machineId) {
+      'dumbbell' => const [
+        '3kg',
+        '4kg',
+        '5kg',
+        '6kg',
+        '7kg',
+        '8kg',
+        '9kg',
+        '10kg',
+        '11kg',
+        '12kg',
+        '13kg',
+        '14kg',
+        '15kg',
+        '16kg',
+        '17kg',
+        '18kg',
+        '19kg',
+        '20kg',
+      ],
       'barbell' => const [
         '일자바 10kg',
         '일자바 15kg',
