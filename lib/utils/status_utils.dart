@@ -3,17 +3,17 @@ import 'package:flutter/material.dart';
 import '../models/machine_model.dart';
 import '../models/reservation_model.dart';
 
-const bgColor = Color(0xFFFFF0A3);
-const surfaceColor = Color(0xFFF15AB8);
-const textColor = Color(0xFF15236D);
-const mutedTextColor = Color(0xFF664096);
-const redColor = Color(0xFFEF4444);
-const blueColor = Color(0xFF22C1DA);
-const greenColor = Color(0xFF58D96A);
-const amberColor = Color(0xFFF69B2C);
+const bgColor = Color(0xFFFFF200);
+const surfaceColor = Color(0xFFFF4FD8);
+const textColor = Color(0xFF0019FF);
+const mutedTextColor = Color(0xFF7A00FF);
+const redColor = Color(0xFFFF0000);
+const blueColor = Color(0xFF00E5FF);
+const greenColor = Color(0xFF00FF38);
+const amberColor = Color(0xFFFF7A00);
 const borderColor = Color(0xFF111111);
-const strongBorderColor = Color(0xFFEF4444);
-const lightGrayColor = Color(0xFFD5EB63);
+const strongBorderColor = Color(0xFFFF0000);
+const lightGrayColor = Color(0xFFB6FF00);
 
 Color machineStatusColor(MachineStatus status) {
   return switch (status) {

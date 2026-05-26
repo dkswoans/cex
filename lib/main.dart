@@ -78,7 +78,7 @@ class ApdoApp extends StatelessWidget {
               letterSpacing: 0,
             ),
             filled: true,
-            fillColor: amberColor,
+            fillColor: const Color(0xFFFFB800),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
               vertical: 14,
