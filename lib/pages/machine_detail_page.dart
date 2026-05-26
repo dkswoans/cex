@@ -26,6 +26,7 @@ class MachineDetailPage extends StatelessWidget {
         final isCurrentUserUsing = provider.isUserUsingMachine(machineId);
         final capacity = provider.getMachineCapacity(machineId);
         final isMultiUnitMachine = capacity > 1;
+        final variants = provider.getMachineVariants(machineId);
         final maxUseMinutes = provider.getMaxUseMinutesForMachine(machineId);
         final maxReservationMinutes = provider
             .getMaxReservationMinutesForMachine(machineId);
@@ -34,12 +35,13 @@ class MachineDetailPage extends StatelessWidget {
             : '${activeReservations.map((reservation) => reservation.userName).join(', ')} (${activeReservations.length}/$capacity)';
         final canStart =
             !isCurrentUserUsing &&
-            (myReservation?.status == ReservationStatus.active ||
+            (variants.isNotEmpty ||
+                myReservation?.status == ReservationStatus.active ||
                 provider.hasAvailableUnitNow(machineId));
         final canReserve =
             machine.status != MachineStatus.repair &&
             !isCurrentUserUsing &&
-            myReservation == null;
+            (variants.isNotEmpty || myReservation == null);
 
         return Scaffold(
           backgroundColor: bgColor,
@@ -127,6 +129,13 @@ class MachineDetailPage extends StatelessWidget {
                                 entry.value.userName,
                                 style: AppTextStyles.itemTitle,
                               ),
+                              if (variants.isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Text(
+                                  entry.value.machineName,
+                                  style: AppTextStyles.label,
+                                ),
+                              ],
                               const SizedBox(height: 3),
                               Text(
                                 formatTimeRange(
@@ -170,6 +179,13 @@ class MachineDetailPage extends StatelessWidget {
                                 entry.value.userName,
                                 style: AppTextStyles.itemTitle,
                               ),
+                              if (variants.isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Text(
+                                  entry.value.machineName,
+                                  style: AppTextStyles.label,
+                                ),
+                              ],
                               const SizedBox(height: 3),
                               Text(
                                 formatTimeRange(
@@ -208,6 +224,15 @@ class MachineDetailPage extends StatelessWidget {
                   canCancel: myReservation != null,
                   canFinish: isCurrentUserUsing,
                   onStart: () async {
+                    final variant = variants.isEmpty
+                        ? null
+                        : await _askVariant(
+                            context,
+                            title: '바벨 무게',
+                            variants: variants,
+                          );
+                    if (variants.isNotEmpty && variant == null) return;
+                    if (!context.mounted) return;
                     final minutes = await _askMinutes(
                       context,
                       title: '사용 시간',
@@ -220,11 +245,21 @@ class MachineDetailPage extends StatelessWidget {
                     final message = await provider.startUsingMachine(
                       machineId,
                       minutes: minutes,
+                      variantLabel: variant,
                     );
                     if (!context.mounted) return;
                     _showMessage(context, message);
                   },
                   onReserve: () async {
+                    final variant = variants.isEmpty
+                        ? null
+                        : await _askVariant(
+                            context,
+                            title: '바벨 무게',
+                            variants: variants,
+                          );
+                    if (variants.isNotEmpty && variant == null) return;
+                    if (!context.mounted) return;
                     final request = await _askReservation(
                       context,
                       maxMinutes: maxReservationMinutes,
@@ -234,6 +269,7 @@ class MachineDetailPage extends StatelessWidget {
                       machineId,
                       minutes: request.minutes,
                       startAt: request.startAt,
+                      variantLabel: variant,
                     );
                     if (!context.mounted) return;
                     _showMessage(context, message);
@@ -278,6 +314,26 @@ class MachineDetailPage extends StatelessWidget {
         initialMinutes: initialMinutes,
         helperText: helperText,
         confirmLabel: confirmLabel,
+      ),
+    );
+  }
+
+  Future<String?> _askVariant(
+    BuildContext context, {
+    required String title,
+    required List<String> variants,
+  }) {
+    return showDialog<String>(
+      context: context,
+      builder: (_) => SimpleDialog(
+        title: Text(title),
+        children: [
+          for (final variant in variants)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(context).pop(variant),
+              child: Text(variant),
+            ),
+        ],
       ),
     );
   }

@@ -125,7 +125,7 @@ class MachineMarker extends StatelessWidget {
   String? get _markerDescription {
     return switch (machine.machineId) {
       'dumbbell' => '3~20kg',
-      'barbell' => '5~30kg',
+      'barbell' => '10~30kg',
       'treadmill' => '9대',
       'cycle' => '4대',
       _ => null,

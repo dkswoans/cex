@@ -181,6 +181,28 @@ class GymProvider extends ChangeNotifier {
         .firstOrNull;
   }
 
+  List<String> getMachineVariants(String machineId) {
+    return switch (machineId) {
+      'barbell' => const [
+        '일자바 10kg',
+        '일자바 15kg',
+        '일자바 20kg',
+        '일자바 25kg',
+        '일자바 30kg',
+        '이지바 10kg',
+        '이지바 15kg',
+        '이지바 20kg',
+        '이지바 25kg',
+        '이지바 30kg',
+      ],
+      _ => const [],
+    };
+  }
+
+  bool machineUsesVariants(String machineId) {
+    return getMachineVariants(machineId).isNotEmpty;
+  }
+
   bool isUserUsingMachine(String machineId) {
     final user = currentUser;
     if (user == null) return false;
@@ -193,7 +215,9 @@ class GymProvider extends ChangeNotifier {
         machines.any(
           (machine) =>
               machine.machineId == machineId &&
-              _splitMultiValue(machine.currentUserId).contains(user.userId),
+              _splitMultiValue(
+                machine.currentUserId,
+              ).any((value) => _baseUserId(value) == user.userId),
         );
   }
 
@@ -218,7 +242,8 @@ class GymProvider extends ChangeNotifier {
     final now = DateTime.now();
     for (var index = 0; index < ids.length; index++) {
       final userId = ids[index];
-      if (result.any((reservation) => reservation.userId == userId)) {
+      final baseUserId = _baseUserId(userId);
+      if (result.any((reservation) => reservation.userId == baseUserId)) {
         continue;
       }
       result.add(
@@ -226,7 +251,7 @@ class GymProvider extends ChangeNotifier {
           reservationId: '${machineId}_${userId}_direct',
           machineId: machine.machineId,
           machineName: machine.name,
-          userId: userId,
+          userId: baseUserId,
           userName: index < names.length ? names[index] : userId,
           status: ReservationStatus.active,
           createdAt: machine.startedAt ?? now,
@@ -261,12 +286,13 @@ class GymProvider extends ChangeNotifier {
     return 15;
   }
 
-  bool hasAvailableUnitNow(String machineId) {
+  bool hasAvailableUnitNow(String machineId, {String? variantLabel}) {
     final now = DateTime.now();
     final activeCount = _overlappingReservationCount(
       machineId,
       startAt: now,
       endAt: now.add(const Duration(minutes: 1)),
+      variantLabel: variantLabel,
     );
     return activeCount < getMachineCapacity(machineId);
   }
@@ -290,10 +316,15 @@ class GymProvider extends ChangeNotifier {
     String machineId, {
     required int minutes,
     required DateTime startAt,
+    String? variantLabel,
   }) async {
     final user = currentUser;
     if (user == null) return '로그인이 필요합니다.';
     final machine = getMachineById(machineId);
+    if (machineUsesVariants(machineId) &&
+        (variantLabel == null || variantLabel.isEmpty)) {
+      return '종류를 선택해 주세요.';
+    }
     final maxMinutes = getMaxReservationMinutesForMachine(machineId);
     if (minutes < 1 || minutes > maxMinutes) {
       return '예약 시간은 1분부터 $maxMinutes분까지 가능합니다.';
@@ -312,7 +343,12 @@ class GymProvider extends ChangeNotifier {
       return '점검 중인 기구는 예약할 수 없습니다.';
     }
 
-    final alreadyReserved = getMyReservationForMachine(machineId) != null;
+    final alreadyReserved = getMyReservations().any(
+      (reservation) =>
+          reservation.machineId == machineId &&
+          (!machineUsesVariants(machineId) ||
+              _reservationMatchesVariant(reservation, variantLabel)),
+    );
     if (alreadyReserved) return '이미 예약한 기구입니다.';
 
     if (getMyReservations().length >= 2) {
@@ -333,6 +369,7 @@ class GymProvider extends ChangeNotifier {
       machineId,
       startAt: startAt,
       endAt: endAt,
+      variantLabel: variantLabel,
     );
     if (overlappingCount >= capacity) {
       return '해당 시간대에 예약 가능한 자리가 없습니다.';
@@ -350,7 +387,7 @@ class GymProvider extends ChangeNotifier {
       reservationId:
           '${machineId}_${user.userId}_${now.millisecondsSinceEpoch}',
       machineId: machine.machineId,
-      machineName: machine.name,
+      machineName: _machineDisplayName(machine.name, variantLabel),
       userId: user.userId,
       userName: user.name,
       status: ReservationStatus.waiting,
@@ -399,19 +436,25 @@ class GymProvider extends ChangeNotifier {
   Future<String> startUsingMachine(
     String machineId, {
     required int minutes,
+    String? variantLabel,
   }) async {
     final user = currentUser;
     await _applyReservationWindows();
     if (user == null) return '로그인이 필요합니다.';
 
     final machine = getMachineById(machineId);
+    if (machineUsesVariants(machineId) &&
+        (variantLabel == null || variantLabel.isEmpty)) {
+      return '종류를 선택해 주세요.';
+    }
     final maxMinutes = getMaxUseMinutesForMachine(machineId);
     final activeReservation = reservations
         .where(
           (reservation) =>
               reservation.machineId == machineId &&
               reservation.userId == user.userId &&
-              reservation.status == ReservationStatus.active,
+              reservation.status == ReservationStatus.active &&
+              _reservationMatchesVariant(reservation, variantLabel),
         )
         .firstOrNull;
     if (minutes < 1 || minutes > maxMinutes) {
@@ -437,12 +480,15 @@ class GymProvider extends ChangeNotifier {
         ) ||
         machines.any(
           (item) =>
-              _splitMultiValue(item.currentUserId).contains(user.userId) &&
+              _splitMultiValue(
+                item.currentUserId,
+              ).any((value) => _baseUserId(value) == user.userId) &&
               item.machineId != machineId,
         );
     if (usingOther) return '이미 다른 기구를 사용 중입니다.';
 
-    if (activeReservation == null && !hasAvailableUnitNow(machineId)) {
+    if (activeReservation == null &&
+        !hasAvailableUnitNow(machineId, variantLabel: variantLabel)) {
       return '현재 사용 가능한 자리가 없습니다.';
     }
 
@@ -477,9 +523,10 @@ class GymProvider extends ChangeNotifier {
 
       final currentUserIds = _splitMultiValue(machine.currentUserId);
       final currentUserNames = _splitMultiValue(machine.currentUserName);
-      if (!currentUserIds.contains(user.userId)) {
-        currentUserIds.add(user.userId);
-        currentUserNames.add(user.name);
+      final usageUserId = _usageUserId(user.userId, variantLabel);
+      if (!currentUserIds.contains(usageUserId)) {
+        currentUserIds.add(usageUserId);
+        currentUserNames.add(_usageUserName(user.name, variantLabel));
       }
       final updatedMachine = machine.copyWith(
         status: MachineStatus.using,
@@ -511,7 +558,9 @@ class GymProvider extends ChangeNotifier {
         )
         .firstOrNull;
     if (userActiveReservation == null &&
-        !_splitMultiValue(machine.currentUserId).contains(user.userId)) {
+        !_splitMultiValue(
+          machine.currentUserId,
+        ).any((value) => _baseUserId(value) == user.userId)) {
       return '본인이 사용 중인 기구만 종료할 수 있습니다.';
     }
 
@@ -558,7 +607,9 @@ class GymProvider extends ChangeNotifier {
       );
       final currentUserIds = _splitMultiValue(machine.currentUserId);
       final currentUserNames = _splitMultiValue(machine.currentUserName);
-      final removeIndex = currentUserIds.indexOf(user.userId);
+      final removeIndex = currentUserIds.indexWhere(
+        (value) => _baseUserId(value) == user.userId,
+      );
       if (removeIndex != -1) {
         currentUserIds.removeAt(removeIndex);
         if (removeIndex < currentUserNames.length) {
@@ -662,6 +713,33 @@ class GymProvider extends ChangeNotifier {
     return startAt.isBefore(existingEndAt) && endAt.isAfter(existingStartAt);
   }
 
+  bool _reservationMatchesVariant(
+    ReservationModel reservation,
+    String? variantLabel,
+  ) {
+    if (variantLabel == null || variantLabel.isEmpty) return true;
+    return reservation.machineName.endsWith(' $variantLabel');
+  }
+
+  String _machineDisplayName(String machineName, String? variantLabel) {
+    if (variantLabel == null || variantLabel.isEmpty) return machineName;
+    return '$machineName $variantLabel';
+  }
+
+  String _usageUserId(String userId, String? variantLabel) {
+    if (variantLabel == null || variantLabel.isEmpty) return userId;
+    return '$userId@$variantLabel';
+  }
+
+  String _usageUserName(String userName, String? variantLabel) {
+    if (variantLabel == null || variantLabel.isEmpty) return userName;
+    return '$userName · $variantLabel';
+  }
+
+  String _baseUserId(String value) {
+    return value.split('@').first;
+  }
+
   List<String> _splitMultiValue(String? value) {
     if (value == null || value.isEmpty) return [];
     return value
@@ -689,6 +767,7 @@ class GymProvider extends ChangeNotifier {
     String machineId, {
     required DateTime startAt,
     required DateTime endAt,
+    String? variantLabel,
   }) {
     return reservations
         .where(
@@ -696,6 +775,7 @@ class GymProvider extends ChangeNotifier {
               reservation.machineId == machineId &&
               (reservation.status == ReservationStatus.waiting ||
                   reservation.status == ReservationStatus.active) &&
+              _reservationMatchesVariant(reservation, variantLabel) &&
               _reservationOverlaps(reservation, startAt: startAt, endAt: endAt),
         )
         .length;
