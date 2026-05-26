@@ -78,16 +78,16 @@ class _ReservationBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        border: Border.all(color: color.withValues(alpha: 0.28)),
-        borderRadius: BorderRadius.circular(999),
+        color: Color.lerp(color, bgColor, 0.18),
+        border: Border.all(color: borderColor, width: 2.5),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
       ),
       child: Text(
         reservationStatusText(status),
         style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
+          color: textColor,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
         ),
       ),
     );

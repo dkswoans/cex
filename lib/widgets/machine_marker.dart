@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/machine_model.dart';
 import '../utils/status_utils.dart';
+import 'app_design.dart';
 
 class MachineMarker extends StatelessWidget {
   const MachineMarker({
@@ -31,20 +32,20 @@ class MachineMarker extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(AppRadii.lg),
           child: Container(
             width: size.width,
             height: size.height,
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
             decoration: BoxDecoration(
               color: statusColor == greenColor ? bgColor : surfaceColor,
-              border: Border.all(color: borderColor, width: 3.5),
+              border: Border.all(color: borderColor, width: 3),
               borderRadius: BorderRadius.circular(_radius),
               boxShadow: [
                 BoxShadow(
                   color: statusColor,
                   blurRadius: 0,
-                  offset: const Offset(5, 5),
+                  offset: const Offset(4, 4),
                 ),
               ],
             ),
@@ -72,7 +73,7 @@ class MachineMarker extends StatelessWidget {
                         style: const TextStyle(
                           color: textColor,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5,
+                          letterSpacing: 0.4,
                         ),
                       ),
                     ],
@@ -106,7 +107,7 @@ class MachineMarker extends StatelessWidget {
   double get _radius {
     return switch (machine.machineId.length % 4) {
       0 => 3,
-      1 => 28,
+      1 => AppRadii.lg,
       2 => 12,
       _ => 999,
     };
@@ -148,7 +149,7 @@ class _MarkerSubText extends StatelessWidget {
         color: color,
         fontSize: 10,
         fontWeight: FontWeight.w900,
-        letterSpacing: 1.3,
+        letterSpacing: 0.3,
       ),
     );
   }

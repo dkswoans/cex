@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/machine_model.dart';
 import '../utils/status_utils.dart';
 import '../utils/time_utils.dart';
+import 'app_design.dart';
 import 'status_badge.dart';
 
 class SelectedMachinePanel extends StatelessWidget {
@@ -47,8 +48,9 @@ class SelectedMachinePanel extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: surfaceColor,
-        border: Border.all(color: borderColor),
-        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor, width: 3),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        boxShadow: AppShadows.sticker,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -154,7 +156,7 @@ class _ActionButton extends StatelessWidget {
       onPressed: onPressed,
       style: FilledButton.styleFrom(
         backgroundColor: isDanger ? redColor : blueColor,
-        foregroundColor: Colors.white,
+        foregroundColor: textColor,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       ),
       child: Text(label),

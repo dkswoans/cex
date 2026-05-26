@@ -5,6 +5,7 @@ import 'pages/login_page.dart';
 import 'providers/gym_provider.dart';
 import 'services/supabase_config.dart';
 import 'utils/status_utils.dart';
+import 'widgets/app_design.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,35 +22,32 @@ class ApdoApp extends StatelessWidget {
       create: (_) => GymProvider(),
       child: MaterialApp(
         title: '압도정진올라잇삼창돌격',
-        debugShowCheckedModeBanner: true,
+        debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,
-          fontFamily: 'Comic Sans MS',
           colorScheme: ColorScheme.fromSeed(
             seedColor: surfaceColor,
             brightness: Brightness.light,
           ),
           scaffoldBackgroundColor: bgColor,
-          textTheme: Theme.of(context).textTheme.apply(
-            bodyColor: textColor,
-            displayColor: redColor,
-            fontFamily: 'Comic Sans MS',
-          ),
+          textTheme: Theme.of(
+            context,
+          ).textTheme.apply(bodyColor: textColor, displayColor: redColor),
           appBarTheme: const AppBarTheme(
             backgroundColor: surfaceColor,
             foregroundColor: bgColor,
             surfaceTintColor: Colors.transparent,
-            elevation: 12,
+            elevation: 0,
             centerTitle: true,
             titleTextStyle: TextStyle(
               color: bgColor,
-              fontSize: 21,
+              fontSize: 20,
               fontWeight: FontWeight.w900,
-              letterSpacing: 3,
+              letterSpacing: 0.8,
               shadows: [
                 Shadow(
                   color: Colors.black,
-                  offset: Offset(3, 3),
+                  offset: Offset(2, 2),
                   blurRadius: 0,
                 ),
               ],
@@ -57,58 +55,77 @@ class ApdoApp extends StatelessWidget {
           ),
           cardTheme: CardThemeData(
             color: surfaceColor,
-            elevation: 16,
-            shadowColor: greenColor,
-            margin: const EdgeInsets.symmetric(vertical: 11, horizontal: 3),
+            elevation: 0,
+            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
             shape: RoundedRectangleBorder(
-              side: const BorderSide(color: borderColor, width: 4),
-              borderRadius: BorderRadius.circular(26),
+              side: const BorderSide(color: borderColor, width: 3),
+              borderRadius: BorderRadius.circular(AppRadii.lg),
             ),
           ),
           inputDecorationTheme: InputDecorationTheme(
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(24),
-              borderSide: const BorderSide(color: redColor, width: 4),
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: borderColor, width: 3),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(3),
-              borderSide: const BorderSide(color: greenColor, width: 6),
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: blueColor, width: 4),
             ),
             labelStyle: const TextStyle(
               color: textColor,
               fontWeight: FontWeight.w900,
-              letterSpacing: 2,
+              letterSpacing: 0,
             ),
             filled: true,
-            fillColor: const Color(0xFFFFB800),
+            fillColor: amberColor,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
           ),
           filledButtonTheme: FilledButtonThemeData(
             style: FilledButton.styleFrom(
               backgroundColor: redColor,
               foregroundColor: bgColor,
-              minimumSize: const Size(0, 52),
-              elevation: 18,
-              shadowColor: blueColor,
+              minimumSize: const Size(0, 48),
+              elevation: 0,
               shape: const BeveledRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(14)),
-                side: BorderSide(color: Colors.black, width: 4),
+                borderRadius: BorderRadius.all(Radius.circular(10)),
+                side: BorderSide(color: Colors.black, width: 3),
               ),
               textStyle: const TextStyle(
                 fontWeight: FontWeight.w900,
-                fontSize: 17,
-                letterSpacing: 4,
+                fontSize: 15,
+                letterSpacing: 0.8,
               ),
             ),
           ),
           outlinedButtonTheme: OutlinedButtonThemeData(
             style: OutlinedButton.styleFrom(
-              foregroundColor: redColor,
+              foregroundColor: textColor,
               backgroundColor: greenColor,
-              side: const BorderSide(color: borderColor, width: 3),
+              side: const BorderSide(color: borderColor, width: 2.5),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(999),
               ),
+            ),
+          ),
+          dialogTheme: DialogThemeData(
+            backgroundColor: bgColor,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              side: const BorderSide(color: borderColor, width: 3),
+              borderRadius: BorderRadius.circular(AppRadii.lg),
+            ),
+            titleTextStyle: AppTextStyles.sectionTitle,
+            contentTextStyle: AppTextStyles.value,
+          ),
+          snackBarTheme: const SnackBarThemeData(
+            backgroundColor: textColor,
+            contentTextStyle: TextStyle(
+              color: bgColor,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ),

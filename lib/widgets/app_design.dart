@@ -2,37 +2,74 @@ import 'package:flutter/material.dart';
 
 import '../utils/status_utils.dart';
 
+class AppSpacing {
+  const AppSpacing._();
+
+  static const xs = 4.0;
+  static const sm = 8.0;
+  static const md = 12.0;
+  static const lg = 16.0;
+  static const xl = 24.0;
+}
+
+class AppRadii {
+  const AppRadii._();
+
+  static const sm = 6.0;
+  static const md = 10.0;
+  static const lg = 16.0;
+  static const pill = 999.0;
+}
+
+class AppShadows {
+  const AppShadows._();
+
+  static const sticker = [
+    BoxShadow(color: borderColor, offset: Offset(4, 4), blurRadius: 0),
+  ];
+
+  static const loud = [
+    BoxShadow(color: blueColor, offset: Offset(5, 5), blurRadius: 0),
+    BoxShadow(color: redColor, offset: Offset(-2, -2), blurRadius: 0),
+  ];
+}
+
 class AppTextStyles {
   const AppTextStyles._();
 
   static const sectionTitle = TextStyle(
     color: textColor,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: FontWeight.w900,
+    height: 1.15,
   );
 
   static const itemTitle = TextStyle(
     color: textColor,
     fontSize: 17,
     fontWeight: FontWeight.w900,
+    height: 1.2,
   );
 
   static const label = TextStyle(
     color: mutedTextColor,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: FontWeight.w800,
+    height: 1.25,
   );
 
   static const value = TextStyle(
     color: textColor,
     fontSize: 14,
-    fontWeight: FontWeight.w700,
+    fontWeight: FontWeight.w800,
+    height: 1.3,
   );
 
   static const empty = TextStyle(
     color: mutedTextColor,
     fontSize: 14,
-    fontWeight: FontWeight.w700,
+    fontWeight: FontWeight.w800,
+    height: 1.35,
   );
 }
 
@@ -44,7 +81,7 @@ class AppSectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Text(text, style: AppTextStyles.sectionTitle),
     );
   }
@@ -57,8 +94,17 @@ class AppRecordCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(padding: const EdgeInsets.all(16), child: child),
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        border: Border.all(color: borderColor, width: 3),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        boxShadow: AppShadows.sticker,
+      ),
+      child: child,
     );
   }
 }
@@ -105,8 +151,9 @@ class AppEmptyPanel extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surfaceColor,
-        border: Border.all(color: borderColor),
-        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor, width: 3),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        boxShadow: AppShadows.sticker,
       ),
       child: Text(
         text,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/machine_model.dart';
 import '../utils/status_utils.dart';
+import 'app_design.dart';
 import 'machine_marker.dart';
 
 class GymMap extends StatelessWidget {
@@ -30,13 +31,13 @@ class GymMap extends StatelessWidget {
           child: Container(
             height: height,
             decoration: BoxDecoration(
-              color: const Color(0xFFFF7A00),
-              border: Border.all(color: borderColor, width: 6),
-              borderRadius: BorderRadius.circular(31),
+              color: amberColor,
+              border: Border.all(color: borderColor, width: 4),
+              borderRadius: BorderRadius.circular(AppRadii.lg),
               boxShadow: const [
                 BoxShadow(
                   color: blueColor,
-                  offset: Offset(8, 8),
+                  offset: Offset(5, 5),
                   blurRadius: 0,
                 ),
               ],
@@ -132,14 +133,14 @@ class _MapPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final zonePaint = Paint()
-      ..color = lightGrayColor
+      ..color = lightGrayColor.withValues(alpha: 0.88)
       ..style = PaintingStyle.fill;
     final linePaint = Paint()
-      ..color = redColor
-      ..strokeWidth = 3;
+      ..color = redColor.withValues(alpha: 0.36)
+      ..strokeWidth = 2;
     final slashPaint = Paint()
-      ..color = blueColor
-      ..strokeWidth = 5;
+      ..color = blueColor.withValues(alpha: 0.28)
+      ..strokeWidth = 4;
 
     for (var x = -0.2; x < 1.2; x += 0.12) {
       canvas.drawLine(
@@ -206,8 +207,11 @@ class _MapLabel extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
         decoration: BoxDecoration(
           color: bgColor,
-          border: Border.all(color: color, width: 4),
-          borderRadius: BorderRadius.circular(2),
+          border: Border.all(color: borderColor, width: 3),
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+          boxShadow: const [
+            BoxShadow(color: borderColor, offset: Offset(3, 3), blurRadius: 0),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -220,7 +224,7 @@ class _MapLabel extends StatelessWidget {
                 color: color,
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
-                letterSpacing: 2,
+                letterSpacing: 0.8,
               ),
             ),
           ],
@@ -253,9 +257,9 @@ class _AreaBox extends StatelessWidget {
           height: height,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.46),
-            border: Border.all(color: textColor, width: 3),
-            borderRadius: BorderRadius.circular(30),
+            color: bgColor.withValues(alpha: 0.62),
+            border: Border.all(color: textColor, width: 2.5),
+            borderRadius: BorderRadius.circular(AppRadii.lg),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -266,7 +270,7 @@ class _AreaBox extends StatelessWidget {
                   color: redColor,
                   fontSize: 15,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 2,
+                  letterSpacing: 0.6,
                 ),
               ),
               const SizedBox(height: 2),
@@ -295,8 +299,8 @@ class _Legend extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 8),
       decoration: BoxDecoration(
         color: surfaceColor,
-        border: Border.all(color: borderColor, width: 4),
-        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: borderColor, width: 3),
+        borderRadius: BorderRadius.circular(AppRadii.md),
       ),
       child: const Column(
         mainAxisSize: MainAxisSize.min,
@@ -335,7 +339,7 @@ class _LegendDot extends StatelessWidget {
           label,
           style: const TextStyle(
             color: bgColor,
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: FontWeight.w900,
           ),
         ),

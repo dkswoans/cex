@@ -143,8 +143,9 @@ class _MetricCard extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: surfaceColor,
-        border: Border.all(color: borderColor),
-        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor, width: 3),
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        boxShadow: AppShadows.sticker,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

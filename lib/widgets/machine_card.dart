@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/machine_model.dart';
 import '../utils/status_utils.dart';
 import '../utils/time_utils.dart';
+import 'app_design.dart';
 import 'status_badge.dart';
 
 class MachineCard extends StatelessWidget {
@@ -21,10 +22,17 @@ class MachineCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        border: Border.all(color: borderColor, width: 3),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        boxShadow: AppShadows.sticker,
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(

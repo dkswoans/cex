@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
+import '../widgets/app_design.dart';
 import 'main_navigation_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -49,7 +50,7 @@ class _LoginPageState extends State<LoginPage> {
             gradient: RadialGradient(
               center: Alignment(-0.7, -0.7),
               radius: 1.4,
-              colors: [greenColor, bgColor, surfaceColor, blueColor],
+              colors: [lightGrayColor, bgColor, surfaceColor],
             ),
           ),
           child: Center(
@@ -58,22 +59,22 @@ class _LoginPageState extends State<LoginPage> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 430),
                 child: Transform.rotate(
-                  angle: -0.035,
+                  angle: -0.018,
                   child: Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: surfaceColor,
-                      border: Border.all(color: borderColor, width: 6),
-                      borderRadius: BorderRadius.circular(34),
+                      border: Border.all(color: borderColor, width: 4),
+                      borderRadius: BorderRadius.circular(AppRadii.lg),
                       boxShadow: const [
                         BoxShadow(
                           color: redColor,
-                          offset: Offset(10, 10),
+                          offset: Offset(6, 6),
                           blurRadius: 0,
                         ),
                         BoxShadow(
                           color: greenColor,
-                          offset: Offset(-6, -6),
+                          offset: Offset(-3, -3),
                           blurRadius: 0,
                         ),
                       ],
@@ -82,17 +83,17 @@ class _LoginPageState extends State<LoginPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Transform.rotate(
-                          angle: 0.045,
+                          angle: 0.02,
                           child: Container(
                             height: 142,
                             decoration: BoxDecoration(
                               color: bgColor,
-                              border: Border.all(color: borderColor, width: 6),
-                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(color: borderColor, width: 4),
+                              borderRadius: BorderRadius.circular(AppRadii.md),
                               boxShadow: const [
                                 BoxShadow(
                                   color: blueColor,
-                                  offset: Offset(7, 7),
+                                  offset: Offset(4, 4),
                                   blurRadius: 0,
                                 ),
                               ],
@@ -110,14 +111,14 @@ class _LoginPageState extends State<LoginPage> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: bgColor,
-                            fontSize: 26,
+                            fontSize: 25,
                             fontWeight: FontWeight.w900,
-                            height: 0.9,
-                            letterSpacing: 2,
+                            height: 1.0,
+                            letterSpacing: 0.8,
                             shadows: [
                               Shadow(
                                 color: Colors.black,
-                                offset: Offset(4, 4),
+                                offset: Offset(2, 2),
                                 blurRadius: 0,
                               ),
                             ],
@@ -131,7 +132,7 @@ class _LoginPageState extends State<LoginPage> {
                             color: greenColor,
                             fontSize: 13,
                             fontWeight: FontWeight.w900,
-                            letterSpacing: 3,
+                            letterSpacing: 0.8,
                           ),
                         ),
                         const SizedBox(height: 26),

@@ -620,6 +620,8 @@ class _Button extends StatelessWidget {
       onPressed: onPressed,
       style: FilledButton.styleFrom(
         backgroundColor: isDanger ? redColor : blueColor,
+        foregroundColor: textColor,
+        minimumSize: const Size(132, 48),
       ),
       child: Text(label),
     );

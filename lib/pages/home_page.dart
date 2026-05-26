@@ -1,11 +1,10 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/machine_model.dart';
 import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
+import '../widgets/app_design.dart';
 import '../widgets/gym_map.dart';
 import 'machine_detail_page.dart';
 
@@ -43,15 +42,9 @@ class HomePage extends StatelessWidget {
           backgroundColor: bgColor,
           body: SafeArea(
             child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [bgColor, surfaceColor, greenColor, blueColor],
-                ),
-              ),
+              decoration: const BoxDecoration(color: bgColor),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(9, 8, 9, 7),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -103,35 +96,32 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Transform.rotate(
-      angle: -0.025,
+      angle: -0.012,
       child: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: surfaceColor,
-          border: Border.all(color: borderColor, width: 5),
-          borderRadius: BorderRadius.circular(23),
-          boxShadow: const [
-            BoxShadow(color: greenColor, offset: Offset(7, 7), blurRadius: 0),
-            BoxShadow(color: redColor, offset: Offset(-3, -3), blurRadius: 0),
-          ],
+          border: Border.all(color: borderColor, width: 4),
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+          boxShadow: AppShadows.loud,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Transform.rotate(
-              angle: 0.55,
+              angle: 0.32,
               child: Container(
-                width: 51,
-                height: 51,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   color: blueColor,
-                  border: Border.all(color: bgColor, width: 4),
+                  border: Border.all(color: borderColor, width: 3),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: const Icon(
                   Icons.fitness_center,
-                  color: redColor,
-                  size: 32,
+                  color: textColor,
+                  size: 30,
                 ),
               ),
             ),
@@ -146,13 +136,13 @@ class _Header extends StatelessWidget {
                     overflow: TextOverflow.clip,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color: bgColor,
-                      fontSize: 25,
+                      fontSize: 24,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 4,
+                      letterSpacing: 1.2,
                       shadows: const [
                         Shadow(
                           color: Colors.black,
-                          offset: Offset(3, 3),
+                          offset: Offset(2, 2),
                           blurRadius: 0,
                         ),
                       ],
@@ -164,9 +154,9 @@ class _Header extends StatelessWidget {
                     overflow: TextOverflow.visible,
                     style: TextStyle(
                       color: greenColor,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 2,
+                      letterSpacing: 0.6,
                     ),
                   ),
                 ],
@@ -192,8 +182,8 @@ class _ModeChip extends StatelessWidget {
         height: 50,
         decoration: BoxDecoration(
           color: greenColor,
-          border: Border.all(color: redColor, width: 4),
-          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: borderColor, width: 3),
+          borderRadius: BorderRadius.circular(AppRadii.sm),
         ),
         clipBehavior: Clip.antiAlias,
         child: Image.asset('assets/images/apdo.jpg', fit: BoxFit.cover),
@@ -284,14 +274,10 @@ class _SummaryItem extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 2),
         padding: const EdgeInsets.all(7),
         decoration: BoxDecoration(
-          color: Color.lerp(color, bgColor, 0.35),
-          border: Border.all(color: borderColor, width: 4),
-          borderRadius: BorderRadius.circular(
-            18 + math.Random(label.length).nextInt(11).toDouble(),
-          ),
-          boxShadow: const [
-            BoxShadow(color: Colors.black, offset: Offset(4, 4), blurRadius: 0),
-          ],
+          color: Color.lerp(color, bgColor, 0.22),
+          border: Border.all(color: borderColor, width: 3),
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          boxShadow: AppShadows.sticker,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -301,7 +287,7 @@ class _SummaryItem extends StatelessWidget {
               '$value',
               style: const TextStyle(
                 color: textColor,
-                fontSize: 24,
+                fontSize: 23,
                 fontWeight: FontWeight.w900,
                 height: 0.9,
               ),
@@ -314,7 +300,7 @@ class _SummaryItem extends StatelessWidget {
                 color: redColor,
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
-                letterSpacing: 1.5,
+                letterSpacing: 0.5,
               ),
             ),
           ],

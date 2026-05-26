@@ -23,14 +23,14 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          color: redColor,
-          border: Border(top: BorderSide(color: Colors.black, width: 6)),
+          color: surfaceColor,
+          border: Border(top: BorderSide(color: Colors.black, width: 4)),
           boxShadow: [
-            BoxShadow(color: greenColor, offset: Offset(0, -6), blurRadius: 0),
+            BoxShadow(color: blueColor, offset: Offset(0, -4), blurRadius: 0),
           ],
         ),
         child: NavigationBar(
-          height: 76,
+          height: 72,
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
           indicatorColor: bgColor,
@@ -39,7 +39,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
               color: bgColor,
               fontSize: 12,
               fontWeight: FontWeight.w900,
-              letterSpacing: 2,
+              letterSpacing: 0.4,
             ),
           ),
           selectedIndex: _selectedIndex,
