@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -61,15 +63,15 @@ class MachineDetailPage extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                machine.name,
-                                style: AppTextStyles.itemTitle,
+                              _MachineTitleBanner(
+                                machineId: machineId,
+                                name: machine.name,
                               ),
                               if (machine.description != null) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  machine.description!,
-                                  style: AppTextStyles.label,
+                                const SizedBox(height: 6),
+                                _SkewedLabel(
+                                  text: machine.description!,
+                                  seed: '${machineId}_d',
                                 ),
                               ],
                             ],
@@ -79,27 +81,31 @@ class MachineDetailPage extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    AppInfoRow(label: '최대 사용 시간', value: '$maxUseMinutes분'),
-                    AppInfoRow(label: '현재 사용자', value: activeUserText),
+                    _FunInfoRow(label: '최대 사용 시간', value: '$maxUseMinutes분', seed: '${machineId}0'),
+                    _FunInfoRow(label: '현재 사용자', value: activeUserText, seed: '${machineId}1'),
                     if (!isMultiUnitMachine && !hasVariants) ...[
-                      AppInfoRow(
+                      _FunInfoRow(
                         label: '시작 시간',
                         value: formatTimeOnly(machine.startedAt),
+                        seed: '${machineId}2',
                       ),
-                      AppInfoRow(
+                      _FunInfoRow(
                         label: '종료 예정',
                         value: formatTimeOnly(machine.endAt),
+                        seed: '${machineId}3',
                       ),
-                      AppInfoRow(
+                      _FunInfoRow(
                         label: '남은 시간',
                         value: formatRemainingMinutes(
                           provider.getRemainingMinutes(machine),
                         ),
+                        seed: '${machineId}4',
                       ),
                     ],
-                    AppInfoRow(
+                    _FunInfoRow(
                       label: '대기 인원',
                       value: '${provider.getWaitingCount(machineId)}명',
+                      seed: '${machineId}5',
                     ),
                   ],
                 ),
@@ -353,6 +359,97 @@ class MachineDetailPage extends StatelessWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _MachineTitleBanner extends StatelessWidget {
+  const _MachineTitleBanner({required this.machineId, required this.name});
+
+  final String machineId;
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final rng = math.Random(machineId.hashCode);
+    final angle = (rng.nextDouble() - 0.5) * 0.22;
+    final colors = [greenColor, blueColor, amberColor, redColor];
+    final color = colors[rng.nextInt(colors.length)];
+
+    return Transform.rotate(
+      alignment: Alignment.centerLeft,
+      angle: angle,
+      child: Text(
+        name,
+        style: TextStyle(
+          color: color,
+          fontSize: 36,
+          fontWeight: FontWeight.w900,
+          height: 1.0,
+          letterSpacing: 1.0,
+          shadows: const [
+            Shadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SkewedLabel extends StatelessWidget {
+  const _SkewedLabel({required this.text, required this.seed});
+
+  final String text;
+  final String seed;
+
+  @override
+  Widget build(BuildContext context) {
+    final angle = (math.Random(seed.hashCode).nextDouble() - 0.5) * 0.12;
+    return Transform.rotate(
+      alignment: Alignment.centerLeft,
+      angle: angle,
+      child: Text(text, style: AppTextStyles.label),
+    );
+  }
+}
+
+class _FunInfoRow extends StatelessWidget {
+  const _FunInfoRow({
+    required this.label,
+    required this.value,
+    required this.seed,
+  });
+
+  final String label;
+  final String value;
+  final String seed;
+
+  @override
+  Widget build(BuildContext context) {
+    final rng = math.Random(seed.hashCode);
+    final angle = (rng.nextDouble() - 0.5) * 0.10;
+    final labelColors = [greenColor, redColor, amberColor, blueColor];
+    final labelColor = labelColors[rng.nextInt(labelColors.length)];
+
+    return Transform.rotate(
+      alignment: Alignment.centerLeft,
+      angle: angle,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 104,
+              child: Text(
+                label,
+                style: AppTextStyles.label.copyWith(color: labelColor),
+              ),
+            ),
+            Expanded(child: Text(value, style: AppTextStyles.value)),
+          ],
+        ),
+      ),
+    );
   }
 }
 
