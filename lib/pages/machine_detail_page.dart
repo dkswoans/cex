@@ -11,6 +11,7 @@ import '../utils/time_utils.dart';
 import '../widgets/app_design.dart';
 import '../widgets/status_badge.dart';
 
+
 class MachineDetailPage extends StatelessWidget {
   const MachineDetailPage({super.key, required this.machineId});
 
@@ -567,26 +568,54 @@ class _FunInfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rng = math.Random(seed.hashCode);
-    final angle = (rng.nextDouble() - 0.5) * 0.10;
-    final labelColors = [greenColor, redColor, amberColor, blueColor];
-    final labelColor = labelColors[rng.nextInt(labelColors.length)];
+    final rowAngle = (rng.nextDouble() - 0.5) * 0.10;
+    final labelAngle = (rng.nextDouble() - 0.5) * 0.14;
+    final valueAngle = (rng.nextDouble() - 0.5) * 0.12;
+    final colors = [greenColor, redColor, amberColor, blueColor];
+    final labelColor = colors[rng.nextInt(colors.length)];
+    final valueColor = colors[rng.nextInt(colors.length)];
 
     return Transform.rotate(
       alignment: Alignment.centerLeft,
-      angle: angle,
+      angle: rowAngle,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.only(bottom: 10),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 104,
+            Transform.rotate(
+              alignment: Alignment.center,
+              angle: labelAngle,
               child: Text(
-                label,
-                style: AppTextStyles.label.copyWith(color: labelColor),
+                '$label  ',
+                style: TextStyle(
+                  color: labelColor,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  height: 1.0,
+                  shadows: const [
+                    Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                  ],
+                ),
               ),
             ),
-            Expanded(child: Text(value, style: AppTextStyles.value)),
+            Transform.rotate(
+              alignment: Alignment.center,
+              angle: valueAngle,
+              child: Text(
+                value,
+                style: TextStyle(
+                  color: valueColor,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  height: 1.0,
+                  shadows: const [
+                    Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
