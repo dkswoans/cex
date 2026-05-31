@@ -88,9 +88,16 @@ class AppSectionTitle extends StatelessWidget {
 }
 
 class AppRecordCard extends StatelessWidget {
-  const AppRecordCard({super.key, required this.child});
+  const AppRecordCard({
+    super.key,
+    required this.child,
+    this.shadows,
+    this.borderRadius,
+  });
 
   final Widget child;
+  final List<BoxShadow>? shadows;
+  final BorderRadius? borderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -101,8 +108,8 @@ class AppRecordCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: surfaceColor,
         border: Border.all(color: borderColor, width: 3),
-        borderRadius: BorderRadius.circular(AppRadii.lg),
-        boxShadow: AppShadows.sticker,
+        borderRadius: borderRadius ?? BorderRadius.circular(AppRadii.lg),
+        boxShadow: shadows ?? AppShadows.sticker,
       ),
       child: child,
     );

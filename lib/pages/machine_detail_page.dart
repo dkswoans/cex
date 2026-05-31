@@ -52,62 +52,67 @@ class MachineDetailPage extends StatelessWidget {
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              AppRecordCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _MachineTitleBanner(
-                                machineId: machineId,
-                                name: machine.name,
-                              ),
-                              if (machine.description != null) ...[
-                                const SizedBox(height: 6),
-                                _SkewedLabel(
-                                  text: machine.description!,
-                                  seed: '${machineId}_d',
+              Transform.rotate(
+                angle: (math.Random(machineId.hashCode ^ 0xABCD).nextDouble() - 0.5) * 0.06,
+                child: _WobblyCard(
+                  seed: '${machineId}_card',
+                  shadows: _randomShadows('${machineId}_card'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _MachineTitleBanner(
+                                  machineId: machineId,
+                                  name: machine.name,
                                 ),
+                                if (machine.description != null) ...[
+                                  const SizedBox(height: 6),
+                                  _SkewedLabel(
+                                    text: machine.description!,
+                                    seed: '${machineId}_d',
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
+                          StatusBadge(status: machine.status),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _FunInfoRow(label: '최대 사용 시간', value: '$maxUseMinutes분', seed: '${machineId}0'),
+                      _FunInfoRow(label: '현재 사용자', value: activeUserText, seed: '${machineId}1'),
+                      if (!isMultiUnitMachine && !hasVariants) ...[
+                        _FunInfoRow(
+                          label: '시작 시간',
+                          value: formatTimeOnly(machine.startedAt),
+                          seed: '${machineId}2',
                         ),
-                        StatusBadge(status: machine.status),
+                        _FunInfoRow(
+                          label: '종료 예정',
+                          value: formatTimeOnly(machine.endAt),
+                          seed: '${machineId}3',
+                        ),
+                        _FunInfoRow(
+                          label: '남은 시간',
+                          value: formatRemainingMinutes(
+                            provider.getRemainingMinutes(machine),
+                          ),
+                          seed: '${machineId}4',
+                        ),
                       ],
-                    ),
-                    const SizedBox(height: 16),
-                    _FunInfoRow(label: '최대 사용 시간', value: '$maxUseMinutes분', seed: '${machineId}0'),
-                    _FunInfoRow(label: '현재 사용자', value: activeUserText, seed: '${machineId}1'),
-                    if (!isMultiUnitMachine && !hasVariants) ...[
                       _FunInfoRow(
-                        label: '시작 시간',
-                        value: formatTimeOnly(machine.startedAt),
-                        seed: '${machineId}2',
-                      ),
-                      _FunInfoRow(
-                        label: '종료 예정',
-                        value: formatTimeOnly(machine.endAt),
-                        seed: '${machineId}3',
-                      ),
-                      _FunInfoRow(
-                        label: '남은 시간',
-                        value: formatRemainingMinutes(
-                          provider.getRemainingMinutes(machine),
-                        ),
-                        seed: '${machineId}4',
+                        label: '대기 인원',
+                        value: '${provider.getWaitingCount(machineId)}명',
+                        seed: '${machineId}5',
                       ),
                     ],
-                    _FunInfoRow(
-                      label: '대기 인원',
-                      value: '${provider.getWaitingCount(machineId)}명',
-                      seed: '${machineId}5',
-                    ),
-                  ],
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -359,6 +364,120 @@ class MachineDetailPage extends StatelessWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+List<BoxShadow> _randomShadows(String seed) {
+  final rng = math.Random(seed.hashCode);
+  const colors = [greenColor, redColor, blueColor, amberColor, borderColor];
+  final count = 2 + rng.nextInt(3);
+  return List.generate(count, (_) {
+    final color = colors[rng.nextInt(colors.length)];
+    final dx = (rng.nextDouble() * 14 - 2);
+    final dy = (rng.nextDouble() * 14 - 2);
+    return BoxShadow(color: color, offset: Offset(dx, dy), blurRadius: 0);
+  });
+}
+
+Path _buildWobblyPath(String seed, Size size) {
+  final rng = math.Random(seed.hashCode);
+  double j() {
+    final sign = rng.nextBool() ? 1 : -1;
+    return sign * (3 + rng.nextDouble() * 3);
+  }
+
+  final W = size.width;
+  final H = size.height;
+
+  final tl = Offset(j(), j());
+  final tr = Offset(W + j(), j());
+  final br = Offset(W + j(), H + j());
+  final bl = Offset(j(), H + j());
+
+  final topMid = Offset(W / 2 + j(), j() * 2);
+  final rightMid = Offset(W + j() * 2, H / 2 + j());
+  final bottomMid = Offset(W / 2 + j(), H + j() * 2);
+  final leftMid = Offset(j() * 2, H / 2 + j());
+
+  return Path()
+    ..moveTo(tl.dx, tl.dy)
+    ..quadraticBezierTo(topMid.dx, topMid.dy, tr.dx, tr.dy)
+    ..quadraticBezierTo(rightMid.dx, rightMid.dy, br.dx, br.dy)
+    ..quadraticBezierTo(bottomMid.dx, bottomMid.dy, bl.dx, bl.dy)
+    ..quadraticBezierTo(leftMid.dx, leftMid.dy, tl.dx, tl.dy)
+    ..close();
+}
+
+class _WobblyCardPainter extends CustomPainter {
+  const _WobblyCardPainter({required this.seed, required this.shadows});
+
+  final String seed;
+  final List<BoxShadow> shadows;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _buildWobblyPath(seed, size);
+
+    for (final shadow in shadows) {
+      canvas.drawPath(
+        path.shift(shadow.offset),
+        Paint()..color = shadow.color,
+      );
+    }
+
+    canvas.drawPath(path, Paint()..color = surfaceColor);
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = borderColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.5,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _WobblyCardPainter old) => old.seed != seed;
+}
+
+class _WobblyCardClipper extends CustomClipper<Path> {
+  const _WobblyCardClipper({required this.seed});
+
+  final String seed;
+
+  @override
+  Path getClip(Size size) => _buildWobblyPath(seed, size);
+
+  @override
+  bool shouldReclip(covariant _WobblyCardClipper old) => old.seed != seed;
+}
+
+class _WobblyCard extends StatelessWidget {
+  const _WobblyCard({
+    required this.seed,
+    required this.shadows,
+    required this.child,
+  });
+
+  final String seed;
+  final List<BoxShadow> shadows;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: CustomPaint(
+        painter: _WobblyCardPainter(seed: seed, shadows: shadows),
+        child: ClipPath(
+          clipper: _WobblyCardClipper(seed: seed),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: child,
+          ),
+        ),
+      ),
+    );
   }
 }
 
