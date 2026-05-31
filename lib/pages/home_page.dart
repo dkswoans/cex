@@ -162,31 +162,8 @@ class _Header extends StatelessWidget {
                 ],
               ),
             ),
-            const _ModeChip(),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ModeChip extends StatelessWidget {
-  const _ModeChip();
-
-  @override
-  Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: 0.18,
-      child: Container(
-        width: 58,
-        height: 50,
-        decoration: BoxDecoration(
-          color: greenColor,
-          border: Border.all(color: borderColor, width: 3),
-          borderRadius: BorderRadius.circular(AppRadii.sm),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Image.asset('assets/images/apdo.jpg', fit: BoxFit.cover),
       ),
     );
   }

@@ -109,7 +109,6 @@ class GymMap extends StatelessWidget {
                     ),
                   );
                 }),
-                const Positioned(top: 9, right: 9, child: _Legend()),
               ],
             ),
           ),
@@ -286,64 +285,6 @@ class _AreaBox extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Legend extends StatelessWidget {
-  const _Legend();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 8),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        border: Border.all(color: borderColor, width: 3),
-        borderRadius: BorderRadius.circular(AppRadii.md),
-      ),
-      child: const Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _LegendDot(color: greenColor, label: '쌉'),
-          _LegendDot(color: redColor, label: '씀'),
-          _LegendDot(color: amberColor, label: '찜'),
-        ],
-      ),
-    );
-  }
-}
-
-class _LegendDot extends StatelessWidget {
-  const _LegendDot({required this.color, required this.label});
-
-  final Color color;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.black, width: 2),
-          ),
-        ),
-        const SizedBox(width: 3),
-        Text(
-          label,
-          style: const TextStyle(
-            color: bgColor,
-            fontSize: 10,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ],
     );
   }
 }
