@@ -118,114 +118,136 @@ class MachineDetailPage extends StatelessWidget {
               const SizedBox(height: 16),
               AppSectionTitle(isMultiUnitMachine ? '현재 사용 현황' : '현재 사용자'),
               if (activeReservations.isEmpty)
-                const AppEmptyPanel(text: '현재 사용 중인 사람이 없습니다.')
+                Transform.rotate(
+                  angle: (math.Random('${machineId}_empty_active'.hashCode ^ 0xABCD).nextDouble() - 0.5) * 0.06,
+                  child: _WobblyCard(
+                    seed: '${machineId}_empty_active',
+                    shadows: _randomShadows('${machineId}_empty_active'),
+                    child: const Center(child: Text('현재 사용 중인 사람이 없습니다.', style: AppTextStyles.empty)),
+                  ),
+                )
               else
-                ...activeReservations.asMap().entries.map(
-                  (entry) => AppRecordCard(
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: amberColor,
-                          foregroundColor: textColor,
-                          child: Text(
-                            '${entry.key + 1}',
-                            style: const TextStyle(fontWeight: FontWeight.w900),
+                for (final entry in activeReservations.asMap().entries)
+                  Transform.rotate(
+                    angle: (math.Random('${machineId}_active_${entry.key}'.hashCode ^ 0xABCD).nextDouble() - 0.5) * 0.06,
+                    child: _WobblyCard(
+                      seed: '${machineId}_active_${entry.key}',
+                      shadows: _randomShadows('${machineId}_active_${entry.key}'),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: amberColor,
+                            foregroundColor: textColor,
+                            child: Text(
+                              '${entry.key + 1}',
+                              style: const TextStyle(fontWeight: FontWeight.w900),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                entry.value.userName,
-                                style: AppTextStyles.itemTitle,
-                              ),
-                              if (variants.isNotEmpty) ...[
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  entry.value.userName,
+                                  style: AppTextStyles.itemTitle,
+                                ),
+                                if (variants.isNotEmpty) ...[
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    entry.value.machineName,
+                                    style: AppTextStyles.label,
+                                  ),
+                                ],
                                 const SizedBox(height: 3),
                                 Text(
-                                  entry.value.machineName,
-                                  style: AppTextStyles.label,
+                                  formatTimeRange(
+                                    entry.value.reservedStartAt,
+                                    entry.value.reservedEndAt,
+                                  ),
+                                  style: AppTextStyles.value,
                                 ),
                               ],
-                              const SizedBox(height: 3),
-                              Text(
-                                formatTimeRange(
-                                  entry.value.reservedStartAt,
-                                  entry.value.reservedEndAt,
-                                ),
-                                style: AppTextStyles.value,
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                        Text('사용 중', style: AppTextStyles.label),
-                      ],
+                          Text('사용 중', style: AppTextStyles.label),
+                        ],
+                      ),
                     ),
                   ),
-                ),
               const SizedBox(height: 16),
               const AppSectionTitle('대기자 목록'),
               if (reservations.isEmpty)
-                const AppEmptyPanel(text: '대기자가 없습니다.')
+                Transform.rotate(
+                  angle: (math.Random('${machineId}_empty_wait'.hashCode ^ 0xABCD).nextDouble() - 0.5) * 0.06,
+                  child: _WobblyCard(
+                    seed: '${machineId}_empty_wait',
+                    shadows: _randomShadows('${machineId}_empty_wait'),
+                    child: const Center(child: Text('대기자가 없습니다.', style: AppTextStyles.empty)),
+                  ),
+                )
               else
-                ...reservations.asMap().entries.map(
-                  (entry) => AppRecordCard(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: lightGrayColor,
-                          foregroundColor: textColor,
-                          child: Text(
-                            '${entry.key + 1}',
-                            style: const TextStyle(fontWeight: FontWeight.w900),
+                for (final entry in reservations.asMap().entries)
+                  Transform.rotate(
+                    angle: (math.Random('${machineId}_wait_${entry.key}'.hashCode ^ 0xABCD).nextDouble() - 0.5) * 0.06,
+                    child: _WobblyCard(
+                      seed: '${machineId}_wait_${entry.key}',
+                      shadows: _randomShadows('${machineId}_wait_${entry.key}'),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: lightGrayColor,
+                            foregroundColor: textColor,
+                            child: Text(
+                              '${entry.key + 1}',
+                              style: const TextStyle(fontWeight: FontWeight.w900),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                entry.value.userName,
-                                style: AppTextStyles.itemTitle,
-                              ),
-                              if (variants.isNotEmpty) ...[
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  entry.value.userName,
+                                  style: AppTextStyles.itemTitle,
+                                ),
+                                if (variants.isNotEmpty) ...[
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    entry.value.machineName,
+                                    style: AppTextStyles.label,
+                                  ),
+                                ],
                                 const SizedBox(height: 3),
                                 Text(
-                                  entry.value.machineName,
-                                  style: AppTextStyles.label,
+                                  formatTimeRange(
+                                    entry.value.reservedStartAt,
+                                    entry.value.reservedEndAt,
+                                  ),
+                                  style: AppTextStyles.value,
                                 ),
+                                const SizedBox(height: 3),
+                                Text('사용 중', style: AppTextStyles.label),
                               ],
-                              const SizedBox(height: 3),
-                              Text(
-                                formatTimeRange(
-                                  entry.value.reservedStartAt,
-                                  entry.value.reservedEndAt,
-                                ),
-                                style: AppTextStyles.value,
-                              ),
-                              const SizedBox(height: 3),
-                              Text('사용 중', style: AppTextStyles.label),
-                            ],
+                            ),
                           ),
-                        ),
-                        if (entry.value.userId == currentUser?.userId)
-                          TextButton(
-                            onPressed: () async {
-                              final message = await provider.cancelReservation(
-                                entry.value.reservationId,
-                              );
-                              if (!context.mounted) return;
-                              _showMessage(context, message);
-                            },
-                            child: const Text('예약 취소'),
-                          ),
-                      ],
+                          if (entry.value.userId == currentUser?.userId)
+                            TextButton(
+                              onPressed: () async {
+                                final message = await provider.cancelReservation(
+                                  entry.value.reservationId,
+                                );
+                                if (!context.mounted) return;
+                                _showMessage(context, message);
+                              },
+                              child: const Text('예약 취소'),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
               const SizedBox(height: 16),
               if (machine.status == MachineStatus.repair)
                 const AppEmptyPanel(text: '점검 중인 기구입니다.')
