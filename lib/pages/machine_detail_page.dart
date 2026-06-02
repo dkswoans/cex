@@ -236,13 +236,13 @@ class MachineDetailPage extends StatelessWidget {
                           ),
                           if (entry.value.userId == currentUser?.userId)
                             TextButton(
-                              onPressed: () async {
-                                final message = await provider.cancelReservation(
-                                  entry.value.reservationId,
-                                );
-                                if (!context.mounted) return;
-                                _showMessage(context, message);
-                              },
+                              onPressed: provider.isActionLoading || provider.isLoading
+                                  ? null
+                                  : () => _cancelWithConfirm(
+                                      context,
+                                      provider,
+                                      entry.value.reservationId,
+                                    ),
                               child: const Text('예약 취소'),
                             ),
                         ],
@@ -258,6 +258,7 @@ class MachineDetailPage extends StatelessWidget {
                   canReserve: canReserve,
                   canCancel: myReservation != null,
                   canFinish: isCurrentUserUsing,
+                  isLoading: provider.isActionLoading || provider.isLoading,
                   onStart: () async {
                     final variant = variants.isEmpty
                         ? null
@@ -311,20 +312,12 @@ class MachineDetailPage extends StatelessWidget {
                   },
                   onCancel: myReservation == null
                       ? null
-                      : () async {
-                          final message = await provider.cancelReservation(
-                            myReservation.reservationId,
-                          );
-                          if (!context.mounted) return;
-                          _showMessage(context, message);
-                        },
-                  onFinish: () async {
-                    final message = await provider.finishUsingMachine(
-                      machineId,
-                    );
-                    if (!context.mounted) return;
-                    _showMessage(context, message);
-                  },
+                      : () => _cancelWithConfirm(
+                          context,
+                          provider,
+                          myReservation.reservationId,
+                        ),
+                  onFinish: () => _finishWithConfirm(context, provider),
                 ),
             ],
           ),
@@ -387,6 +380,63 @@ class MachineDetailPage extends StatelessWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _cancelWithConfirm(
+    BuildContext context,
+    GymProvider provider,
+    String reservationId,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('예약 취소'),
+        content: const Text('예약을 취소하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('아니오'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: redColor),
+            child: const Text('취소'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+    final message = await provider.cancelReservation(reservationId);
+    if (!context.mounted) return;
+    _showMessage(context, message);
+  }
+
+  Future<void> _finishWithConfirm(
+    BuildContext context,
+    GymProvider provider,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('사용 종료'),
+        content: const Text('기구 사용을 종료하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('아니오'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: redColor),
+            child: const Text('종료'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+    final message = await provider.finishUsingMachine(machineId);
+    if (!context.mounted) return;
+    _showMessage(context, message);
   }
 }
 
@@ -836,6 +886,7 @@ class _ActionButtons extends StatelessWidget {
     required this.canReserve,
     required this.canCancel,
     required this.canFinish,
+    required this.isLoading,
     required this.onStart,
     required this.onReserve,
     required this.onCancel,
@@ -846,6 +897,7 @@ class _ActionButtons extends StatelessWidget {
   final bool canReserve;
   final bool canCancel;
   final bool canFinish;
+  final bool isLoading;
   final VoidCallback onStart;
   final VoidCallback onReserve;
   final VoidCallback? onCancel;
@@ -859,12 +911,12 @@ class _ActionButtons extends StatelessWidget {
       spacing: 16,
       runSpacing: 12,
       children: [
-        if (canStart) _Button(label: '사용 시작', onPressed: onStart),
-        if (canReserve) _Button(label: '예약하기', onPressed: onReserve),
+        if (canStart) _Button(label: '사용 시작', onPressed: isLoading ? null : onStart),
+        if (canReserve) _Button(label: '예약하기', onPressed: isLoading ? null : onReserve),
         if (canCancel)
-          _Button(label: '예약 취소', onPressed: onCancel, isDanger: true),
+          _Button(label: '예약 취소', onPressed: isLoading ? null : onCancel, isDanger: true),
         if (canFinish)
-          _Button(label: '사용 종료', onPressed: onFinish, isDanger: true),
+          _Button(label: '사용 종료', onPressed: isLoading ? null : onFinish, isDanger: true),
       ],
     );
   }

@@ -15,7 +15,7 @@ class ReservationCard extends StatelessWidget {
 
   final ReservationModel reservation;
   final int estimatedWaitMinutes;
-  final VoidCallback onCancel;
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {

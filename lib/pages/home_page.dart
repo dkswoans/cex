@@ -48,7 +48,10 @@ class HomePage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _Header(),
+                    _Header(
+                      onRefresh: () => provider.syncFromDatabase(),
+                      isLoading: provider.isLoading,
+                    ),
                     const SizedBox(height: 7),
                     _StatusSummary(
                       available: _count(provider, MachineStatus.available),
@@ -91,7 +94,10 @@ class HomePage extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header();
+  const _Header({required this.onRefresh, required this.isLoading});
+
+  final VoidCallback onRefresh;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -161,6 +167,11 @@ class _Header extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: '새로고침',
+              onPressed: isLoading ? null : onRefresh,
             ),
           ],
         ),
