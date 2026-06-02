@@ -23,7 +23,9 @@ class MachineDetailPage extends StatelessWidget {
       builder: (context, provider, _) {
         final machine = provider.getMachineById(machineId);
         final currentUser = provider.currentUser;
-        final reservations = provider.getReservationsByMachine(machineId);
+        final reservations = provider.getReservationsByMachine(machineId)
+            .where((r) => r.status == ReservationStatus.waiting)
+            .toList();
         final activeReservations = provider.getCurrentUsersByMachine(machineId);
         final myReservation = provider.getMyReservationForMachine(machineId);
         final isCurrentUserUsing = provider.isUserUsingMachine(machineId);
@@ -229,8 +231,6 @@ class MachineDetailPage extends StatelessWidget {
                                   ),
                                   style: AppTextStyles.value,
                                 ),
-                                const SizedBox(height: 3),
-                                Text('사용 중', style: AppTextStyles.label),
                               ],
                             ),
                           ),

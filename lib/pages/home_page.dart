@@ -49,7 +49,15 @@ class HomePage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _Header(
-                      onRefresh: () => provider.syncFromDatabase(),
+                      onRefresh: () async {
+                        await provider.syncFromDatabase();
+                        if (!context.mounted) return;
+                        if (provider.errorMessage != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(provider.errorMessage!)),
+                          );
+                        }
+                      },
                       isLoading: provider.isLoading,
                     ),
                     const SizedBox(height: 7),
@@ -96,7 +104,7 @@ class HomePage extends StatelessWidget {
 class _Header extends StatelessWidget {
   const _Header({required this.onRefresh, required this.isLoading});
 
-  final VoidCallback onRefresh;
+  final Future<void> Function() onRefresh;
   final bool isLoading;
 
   @override

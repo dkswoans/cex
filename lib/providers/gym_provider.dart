@@ -23,9 +23,21 @@ class GymProvider extends ChangeNotifier {
   final List<ReservationModel> reservations = [];
   final List<UsageLogModel> usageLogs = [];
   bool isLoading = false;
+  bool isActionLoading = false;
   String? errorMessage;
   Timer? _reservationTimer;
   bool _isApplyingReservationWindows = false;
+
+  Future<String> _runAction(Future<String> Function() action) async {
+    isActionLoading = true;
+    notifyListeners();
+    try {
+      return await action();
+    } finally {
+      isActionLoading = false;
+      notifyListeners();
+    }
+  }
 
   @override
   void dispose() {
@@ -149,6 +161,15 @@ class GymProvider extends ChangeNotifier {
             .toList()
           ..sort(_compareReservationsByStartTime);
     return result;
+  }
+
+  List<UsageLogModel> getMyUsageLogs() {
+    final user = currentUser;
+    if (user == null) return [];
+    return usageLogs
+        .where((log) => log.userId == user.userId)
+        .toList()
+      ..sort((a, b) => b.endedAt.compareTo(a.endedAt));
   }
 
   List<ReservationModel> getMyReservations() {
@@ -299,11 +320,11 @@ class GymProvider extends ChangeNotifier {
   }
 
   int getMaxUseMinutesForMachine(String machineId) {
-    return machineId == 'treadmill' ? 30 : 15;
+    return getMachineById(machineId).maxUseMinutes;
   }
 
   int getMaxReservationMinutesForMachine(String machineId) {
-    return 15;
+    return getMachineById(machineId).maxUseMinutes;
   }
 
   bool hasAvailableUnitNow(String machineId, {String? variantLabel}) {
@@ -337,7 +358,7 @@ class GymProvider extends ChangeNotifier {
     required int minutes,
     required DateTime startAt,
     String? variantLabel,
-  }) async {
+  }) => _runAction(() async {
     final user = currentUser;
     if (user == null) return '로그인이 필요합니다.';
     final machine = getMachineById(machineId);
@@ -427,9 +448,9 @@ class GymProvider extends ChangeNotifier {
     } catch (error) {
       return '예약에 실패했습니다: $error';
     }
-  }
+  });
 
-  Future<String> cancelReservation(String reservationId) async {
+  Future<String> cancelReservation(String reservationId) => _runAction(() async {
     final index = reservations.indexWhere(
       (reservation) => reservation.reservationId == reservationId,
     );
@@ -451,13 +472,13 @@ class GymProvider extends ChangeNotifier {
     } catch (error) {
       return '예약 취소에 실패했습니다: $error';
     }
-  }
+  });
 
   Future<String> startUsingMachine(
     String machineId, {
     required int minutes,
     String? variantLabel,
-  }) async {
+  }) => _runAction(() async {
     final user = currentUser;
     await _applyReservationWindows();
     if (user == null) return '로그인이 필요합니다.';
@@ -562,9 +583,9 @@ class GymProvider extends ChangeNotifier {
     } catch (error) {
       return '사용 시작에 실패했습니다: $error';
     }
-  }
+  });
 
-  Future<String> finishUsingMachine(String machineId) async {
+  Future<String> finishUsingMachine(String machineId) => _runAction(() async {
     final user = currentUser;
     if (user == null) return '로그인이 필요합니다.';
 
@@ -638,11 +659,15 @@ class GymProvider extends ChangeNotifier {
       }
       final hasDirectUsers = currentUserIds.isNotEmpty;
 
+      final newStatus = hasDirectUsers
+          ? MachineStatus.using
+          : hasOtherActiveUsers
+              ? MachineStatus.reserved
+              : MachineStatus.available;
+
       await _updateMachine(
         machine.copyWith(
-          status: hasOtherActiveUsers || hasDirectUsers
-              ? MachineStatus.reserved
-              : MachineStatus.available,
+          status: newStatus,
           currentUserId: _joinMultiValue(currentUserIds),
           currentUserName: _joinMultiValue(currentUserNames),
           clearCurrentUser: !hasDirectUsers,
@@ -655,7 +680,61 @@ class GymProvider extends ChangeNotifier {
     } catch (error) {
       return '사용 종료에 실패했습니다: $error';
     }
-  }
+  });
+
+  Future<String> toggleRepairStatus(String machineId) => _runAction(() async {
+    final machine = getMachineById(machineId);
+    final goingToRepair = machine.status != MachineStatus.repair;
+    try {
+      if (goingToRepair) {
+        final affected = reservations.where(
+          (r) =>
+              r.machineId == machineId &&
+              (r.status == ReservationStatus.active ||
+                  r.status == ReservationStatus.waiting),
+        ).toList();
+        for (final r in affected) {
+          await SupabaseConfig.client
+              .from('reservations')
+              .update({'status': ReservationStatus.cancelled.name})
+              .eq('id', r.reservationId);
+        }
+      }
+      await _updateMachine(
+        machine.copyWith(
+          status: goingToRepair ? MachineStatus.repair : MachineStatus.available,
+          clearCurrentUser: goingToRepair,
+          clearTimes: goingToRepair,
+        ),
+      );
+      await syncFromDatabase();
+      return goingToRepair ? '점검 상태로 변경되었습니다.' : '점검이 해제되었습니다.';
+    } catch (error) {
+      return '상태 변경에 실패했습니다: $error';
+    }
+  });
+
+  Future<String> updateMachineSettings(
+    String machineId, {
+    int? maxUseMinutes,
+    double? mapX,
+    double? mapY,
+  }) => _runAction(() async {
+    final machine = getMachineById(machineId);
+    try {
+      await _updateMachine(
+        machine.copyWith(
+          maxUseMinutes: maxUseMinutes,
+          mapX: mapX,
+          mapY: mapY,
+        ),
+      );
+      await syncFromDatabase();
+      return '설정이 저장되었습니다.';
+    } catch (error) {
+      return '저장에 실패했습니다: $error';
+    }
+  });
 
   int getRemainingMinutes(MachineModel machine) {
     final endAt = machine.endAt;
@@ -963,16 +1042,18 @@ class GymProvider extends ChangeNotifier {
     if (machine.status == MachineStatus.repair) {
       return;
     }
+    final hasDirectUsers = _splitMultiValue(machine.currentUserId).isNotEmpty;
     final hasActiveReservation = reservations.any(
       (reservation) =>
           reservation.machineId == machineId &&
           reservation.status == ReservationStatus.active,
     );
-    final updatedMachine = machine.copyWith(
-      status: hasActiveReservation
-          ? MachineStatus.reserved
-          : MachineStatus.available,
-    );
+    final newStatus = hasDirectUsers
+        ? MachineStatus.using
+        : hasActiveReservation
+            ? MachineStatus.reserved
+            : MachineStatus.available;
+    final updatedMachine = machine.copyWith(status: newStatus);
     await _updateMachine(updatedMachine);
     final index = machines.indexWhere((item) => item.machineId == machineId);
     if (index != -1) {
