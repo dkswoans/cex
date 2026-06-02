@@ -254,12 +254,16 @@ class MachineDetailPage extends StatelessWidget {
                 const AppEmptyPanel(text: '점검 중인 기구입니다.')
               else
                 _ActionButtons(
-                  canStart: canStart,
+                  showStart: !isCurrentUserUsing,
                   canReserve: canReserve,
                   canCancel: myReservation != null,
                   canFinish: isCurrentUserUsing,
                   isLoading: provider.isActionLoading || provider.isLoading,
                   onStart: () async {
+                    if (!canStart) {
+                      _showMessage(context, '현재 사용 가능한 자리가 없습니다.');
+                      return;
+                    }
                     final variant = variants.isEmpty
                         ? null
                         : await _askVariant(
@@ -882,7 +886,7 @@ class _MinutesDialogState extends State<_MinutesDialog> {
 
 class _ActionButtons extends StatelessWidget {
   const _ActionButtons({
-    required this.canStart,
+    required this.showStart,
     required this.canReserve,
     required this.canCancel,
     required this.canFinish,
@@ -893,7 +897,7 @@ class _ActionButtons extends StatelessWidget {
     required this.onFinish,
   });
 
-  final bool canStart;
+  final bool showStart;
   final bool canReserve;
   final bool canCancel;
   final bool canFinish;
@@ -911,7 +915,7 @@ class _ActionButtons extends StatelessWidget {
       spacing: 16,
       runSpacing: 12,
       children: [
-        if (canStart) _Button(label: '사용 시작', onPressed: isLoading ? null : onStart),
+        if (showStart) _Button(label: '사용 시작', onPressed: isLoading ? null : onStart),
         if (canReserve) _Button(label: '예약하기', onPressed: isLoading ? null : onReserve),
         if (canCancel)
           _Button(label: '예약 취소', onPressed: isLoading ? null : onCancel, isDanger: true),
