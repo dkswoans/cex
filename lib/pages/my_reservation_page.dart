@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/reservation_model.dart';
+import '../models/usage_log_model.dart';
 import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
 import '../utils/time_utils.dart';
@@ -82,7 +84,17 @@ class _MyReservationPageState extends State<MyReservationPage> {
                 IconButton(
                   icon: const Icon(Icons.refresh),
                   tooltip: '새로고침',
-                  onPressed: provider.isLoading ? null : () => provider.syncFromDatabase(),
+                  onPressed: provider.isLoading
+                      ? null
+                      : () async {
+                          await provider.syncFromDatabase();
+                          if (!context.mounted) return;
+                          if (provider.errorMessage != null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(provider.errorMessage!)),
+                            );
+                          }
+                        },
                 ),
               ],
               bottom: const TabBar(
@@ -123,7 +135,7 @@ class _ReservationTab extends StatelessWidget {
     required this.provider,
   });
 
-  final List reservations;
+  final List<ReservationModel> reservations;
   final bool isLoading;
   final Future<void> Function() onRefresh;
   final void Function(String id) onCancel;
@@ -163,7 +175,7 @@ class _ReservationTab extends StatelessWidget {
 class _HistoryTab extends StatelessWidget {
   const _HistoryTab({required this.logs, required this.onRefresh});
 
-  final List logs;
+  final List<UsageLogModel> logs;
   final Future<void> Function() onRefresh;
 
   @override
