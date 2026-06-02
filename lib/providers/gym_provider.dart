@@ -329,13 +329,25 @@ class GymProvider extends ChangeNotifier {
 
   bool hasAvailableUnitNow(String machineId, {String? variantLabel}) {
     final now = DateTime.now();
-    final activeCount = _overlappingReservationCount(
+    final capacity = getMachineCapacity(machineId);
+
+    // reservation 기반 점유 수
+    final reservationCount = _overlappingReservationCount(
       machineId,
       startAt: now,
       endAt: now.add(const Duration(minutes: 1)),
       variantLabel: variantLabel,
     );
-    return activeCount < getMachineCapacity(machineId);
+    if (reservationCount >= capacity) return false;
+
+    // 예약 없이 직접 사용 중인 유저 수 (currentUserId 기준)
+    final machine = getMachineById(machineId);
+    final currentIds = _splitMultiValue(machine.currentUserId);
+    final directCount = variantLabel != null
+        ? currentIds.where((id) => id.endsWith('@$variantLabel')).length
+        : currentIds.length;
+
+    return directCount < capacity;
   }
 
   int getRemainingUnitCount(String machineId) {
