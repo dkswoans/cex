@@ -109,9 +109,7 @@ class _MyPageState extends State<MyPage> {
                 if (myReservations.isEmpty)
                   _tiltedCard(
                     seed: 'no_res',
-                    child: const Center(
-                      child: Text('예약한 기구가 없습니다.', style: AppTextStyles.empty),
-                    ),
+                    child: Center(child: _funLabel('예약한 기구가 없습니다.', 'no_res_text')),
                   )
                 else
                   ...myReservations.asMap().entries.map(
@@ -160,9 +158,7 @@ class _MyPageState extends State<MyPage> {
                 if (recentLogs.isEmpty)
                   _tiltedCard(
                     seed: 'no_logs',
-                    child: const Center(
-                      child: Text('이용 기록이 없습니다.', style: AppTextStyles.empty),
-                    ),
+                    child: Center(child: _funLabel('이용 기록이 없습니다.', 'no_logs_text')),
                   )
                 else
                   ...recentLogs.asMap().entries.map(
@@ -352,6 +348,28 @@ Widget _bigTitle(String text, String seed) {
         letterSpacing: 0.8,
         shadows: const [
           Shadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _funLabel(String text, String seed) {
+  final rng = math.Random(seed.hashCode);
+  final angle = (rng.nextDouble() - 0.5) * 0.16;
+  const colors = [mutedTextColor, blueColor, amberColor, greenColor];
+  final color = colors[rng.nextInt(colors.length)];
+  return Transform.rotate(
+    alignment: Alignment.centerLeft,
+    angle: angle,
+    child: Text(
+      text,
+      style: TextStyle(
+        color: color,
+        fontSize: 13,
+        fontWeight: FontWeight.w900,
+        shadows: const [
+          Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
         ],
       ),
     ),
@@ -591,10 +609,7 @@ class _WeeklyContent extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              Transform.rotate(
-                angle: 0.03,
-                child: const Text('총 운동 시간', style: AppTextStyles.label),
-              ),
+              _funLabel('총 운동 시간', 'weekly_label1'),
             ],
           ),
         ),
@@ -617,10 +632,7 @@ class _WeeklyContent extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              Transform.rotate(
-                angle: -0.04,
-                child: const Text('이용 횟수', style: AppTextStyles.label),
-              ),
+              _funLabel('이용 횟수', 'weekly_label2'),
             ],
           ),
         ),
@@ -704,11 +716,7 @@ class _LogContent extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 6),
-        Transform.rotate(
-          alignment: Alignment.centerLeft,
-          angle: -0.03,
-          child: Text(formatDateTime(log.endedAt), style: AppTextStyles.label),
-        ),
+        _funLabel(formatDateTime(log.endedAt), '${seed}_date'),
       ],
     );
   }
