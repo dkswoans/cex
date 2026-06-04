@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +9,7 @@ import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
 import '../widgets/app_design.dart';
 import '../widgets/status_badge.dart';
+import '../widgets/wobbly_card.dart';
 
 class AdminPage extends StatelessWidget {
   const AdminPage({super.key});
@@ -25,6 +28,7 @@ class AdminPage extends StatelessWidget {
         final repairCount = provider.machines
             .where((m) => m.status == MachineStatus.repair)
             .length;
+        final isLoading = provider.isActionLoading || provider.isLoading;
 
         return Scaffold(
           backgroundColor: bgColor,
@@ -51,97 +55,99 @@ class AdminPage extends StatelessWidget {
           body: RefreshIndicator(
             onRefresh: provider.syncFromDatabase,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               children: [
-                const Text('기구 상태와 설정을 관리합니다.', style: AppTextStyles.label),
-                const SizedBox(height: 12),
+                _sectionLabel('현황'),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: _MetricCard(label: '전체', value: '$totalCount')),
-                    const SizedBox(width: 8),
-                    Expanded(child: _MetricCard(label: '가능', value: '$availableCount')),
-                    const SizedBox(width: 8),
-                    Expanded(child: _MetricCard(label: '사용 중', value: '$usingCount')),
-                    const SizedBox(width: 8),
-                    Expanded(child: _MetricCard(label: '점검', value: '$repairCount')),
+                    Expanded(
+                      child: _MetricCard(
+                        label: '전체',
+                        value: '$totalCount',
+                        seed: 'metric_total',
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: _MetricCard(
+                        label: '가능',
+                        value: '$availableCount',
+                        seed: 'metric_avail',
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: _MetricCard(
+                        label: '사용 중',
+                        value: '$usingCount',
+                        seed: 'metric_using',
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: _MetricCard(
+                        label: '점검',
+                        value: '$repairCount',
+                        seed: 'metric_repair',
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: provider.isActionLoading || provider.isLoading
-                      ? null
-                      : () => _confirmReset(context, provider),
-                  icon: const Icon(Icons.restore),
-                  label: const Text('데모 데이터 초기화'),
+                const SizedBox(height: 4),
+                _tiltedCard(
+                  seed: 'reset_btn',
+                  shadows: const [
+                    BoxShadow(color: redColor, offset: Offset(4, 4), blurRadius: 0),
+                  ],
+                  child: GestureDetector(
+                    onTap: isLoading ? null : () => _confirmReset(context, provider),
+                    child: Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.restore, color: redColor, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            '데모 데이터 초기화',
+                            style: TextStyle(
+                              color: redColor,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black,
+                                  offset: Offset(2, 2),
+                                  blurRadius: 0,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 20),
-                const AppSectionTitle('기구별 예약 시간표'),
-                AppRecordCard(
+                _sectionLabel('기구별 예약 시간표'),
+                _tiltedCard(
+                  seed: 'timeline_card',
+                  padding: const EdgeInsets.all(12),
                   child: _ReservationTimeline(
                     machines: provider.machines,
                     reservations: provider.reservations,
                   ),
                 ),
-                const SizedBox(height: 16),
-                const AppSectionTitle('기구 목록'),
+                _sectionLabel('기구 목록'),
                 ...provider.machines.map(
-                  (machine) => AppRecordCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(machine.name, style: AppTextStyles.itemTitle),
-                            ),
-                            StatusBadge(status: machine.status),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        AppInfoRow(
-                          label: '최대 사용 시간',
-                          value: '${machine.maxUseMinutes}분',
-                        ),
-                        AppInfoRow(
-                          label: '현재 사용자',
-                          value: machine.currentUserName ?? '-',
-                        ),
-                        AppInfoRow(
-                          label: '대기 인원',
-                          value: '${provider.getWaitingCount(machine.machineId)}명',
-                        ),
-                        AppInfoRow(
-                          label: '지도 좌표',
-                          value:
-                              '${machine.mapX.toStringAsFixed(2)}, ${machine.mapY.toStringAsFixed(2)}',
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            OutlinedButton(
-                              onPressed: provider.isActionLoading || provider.isLoading
-                                  ? null
-                                  : () => _showEditDialog(context, provider, machine),
-                              child: const Text('수정'),
-                            ),
-                            OutlinedButton(
-                              onPressed: provider.isActionLoading || provider.isLoading
-                                  ? null
-                                  : () => _confirmToggleRepair(context, provider, machine),
-                              style: machine.status == MachineStatus.repair
-                                  ? OutlinedButton.styleFrom(foregroundColor: greenColor)
-                                  : OutlinedButton.styleFrom(foregroundColor: redColor),
-                              child: Text(
-                                machine.status == MachineStatus.repair
-                                    ? '점검 해제'
-                                    : '점검 전환',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                  (machine) => _tiltedCard(
+                    seed: 'machine_${machine.machineId}',
+                    child: _MachineCardContent(
+                      machine: machine,
+                      provider: provider,
+                      isLoading: isLoading,
+                      onEdit: () => _showEditDialog(context, provider, machine),
+                      onToggleRepair: () =>
+                          _confirmToggleRepair(context, provider, machine),
                     ),
                   ),
                 ),
@@ -226,6 +232,259 @@ class AdminPage extends StatelessWidget {
   }
 }
 
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+Widget _tiltedCard({
+  required String seed,
+  required Widget child,
+  List<BoxShadow>? shadows,
+  EdgeInsets padding = const EdgeInsets.all(AppSpacing.lg),
+}) {
+  final angle = (math.Random(seed.hashCode ^ 0xABCD).nextDouble() - 0.5) * 0.06;
+  return Transform.rotate(
+    angle: angle,
+    child: WobblyCard(
+      seed: seed,
+      shadows: shadows ?? randomShadows(seed),
+      padding: padding,
+      child: child,
+    ),
+  );
+}
+
+Widget _sectionLabel(String text) {
+  final rng = math.Random(text.hashCode);
+  final angle = (rng.nextDouble() - 0.5) * 0.12;
+  const colors = [textColor, blueColor, redColor, amberColor];
+  final color = colors[rng.nextInt(colors.length)];
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 2, top: 10),
+    child: Transform.rotate(
+      alignment: Alignment.centerLeft,
+      angle: angle,
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 20,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.5,
+          shadows: const [
+            Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _bigTitle(String text, String seed) {
+  final rng = math.Random(seed.hashCode);
+  final angle = (rng.nextDouble() - 0.5) * 0.22;
+  const colors = [greenColor, blueColor, amberColor, redColor];
+  final color = colors[rng.nextInt(colors.length)];
+  return Transform.rotate(
+    alignment: Alignment.centerLeft,
+    angle: angle,
+    child: Text(
+      text,
+      style: TextStyle(
+        color: color,
+        fontSize: 26,
+        fontWeight: FontWeight.w900,
+        height: 1.0,
+        letterSpacing: 0.8,
+        shadows: const [
+          Shadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _funRow(String label, String value, String seed) {
+  final rng = math.Random(seed.hashCode);
+  final rowAngle = (rng.nextDouble() - 0.5) * 0.10;
+  final labelAngle = (rng.nextDouble() - 0.5) * 0.14;
+  final valueAngle = (rng.nextDouble() - 0.5) * 0.12;
+  const colors = [greenColor, redColor, amberColor, blueColor];
+  final labelColor = colors[rng.nextInt(colors.length)];
+  final valueColor = colors[rng.nextInt(colors.length)];
+
+  return Transform.rotate(
+    alignment: Alignment.centerLeft,
+    angle: rowAngle,
+    child: Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Transform.rotate(
+            angle: labelAngle,
+            child: Text(
+              '$label  ',
+              style: TextStyle(
+                color: labelColor,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                shadows: const [
+                  Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
+                ],
+              ),
+            ),
+          ),
+          Transform.rotate(
+            angle: valueAngle,
+            child: Text(
+              value,
+              style: TextStyle(
+                color: valueColor,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                shadows: const [
+                  Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// ── section widgets ───────────────────────────────────────────────────────────
+
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({
+    required this.label,
+    required this.value,
+    required this.seed,
+  });
+
+  final String label;
+  final String value;
+  final String seed;
+
+  @override
+  Widget build(BuildContext context) {
+    final rng = math.Random(seed.hashCode);
+    final cardAngle = (rng.nextDouble() - 0.5) * 0.10;
+    final valueAngle = (rng.nextDouble() - 0.5) * 0.14;
+    final labelAngle = (rng.nextDouble() - 0.5) * 0.12;
+    const valueColors = [blueColor, redColor, greenColor, amberColor];
+    final valueColor = valueColors[rng.nextInt(valueColors.length)];
+
+    return Transform.rotate(
+      angle: cardAngle,
+      child: WobblyCard(
+        seed: seed,
+        shadows: chipShadows(seed),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        child: Column(
+          children: [
+            Transform.rotate(
+              angle: valueAngle,
+              child: Text(
+                value,
+                style: TextStyle(
+                  color: valueColor,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  shadows: const [
+                    Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Transform.rotate(
+              angle: labelAngle,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: mutedTextColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  shadows: [
+                    Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MachineCardContent extends StatelessWidget {
+  const _MachineCardContent({
+    required this.machine,
+    required this.provider,
+    required this.isLoading,
+    required this.onEdit,
+    required this.onToggleRepair,
+  });
+
+  final MachineModel machine;
+  final GymProvider provider;
+  final bool isLoading;
+  final VoidCallback onEdit;
+  final VoidCallback onToggleRepair;
+
+  @override
+  Widget build(BuildContext context) {
+    final seed = 'mc_${machine.machineId}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _bigTitle(machine.name, '${seed}_title')),
+            Transform.rotate(
+              angle: 0.05,
+              child: StatusBadge(status: machine.status),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _funRow('최대 사용', '${machine.maxUseMinutes}분', '${seed}_max'),
+        _funRow('사용자', machine.currentUserName ?? '-', '${seed}_user'),
+        _funRow(
+          '대기',
+          '${provider.getWaitingCount(machine.machineId)}명',
+          '${seed}_wait',
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton(
+              onPressed: isLoading ? null : onEdit,
+              child: const Text('수정'),
+            ),
+            OutlinedButton(
+              onPressed: isLoading ? null : onToggleRepair,
+              style: machine.status == MachineStatus.repair
+                  ? OutlinedButton.styleFrom(foregroundColor: greenColor)
+                  : OutlinedButton.styleFrom(foregroundColor: redColor),
+              child: Text(
+                machine.status == MachineStatus.repair ? '점검 해제' : '점검 전환',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ── machine edit dialog ───────────────────────────────────────────────────────
+
 class _MachineEditDialog extends StatefulWidget {
   const _MachineEditDialog({required this.machine, required this.provider});
 
@@ -274,9 +533,7 @@ class _MachineEditDialogState extends State<_MachineEditDialog> {
           TextField(
             controller: _minutesCtrl,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '최대 사용 시간 (분)',
-            ),
+            decoration: const InputDecoration(labelText: '최대 사용 시간 (분)'),
           ),
           const SizedBox(height: 12),
           Row(
@@ -284,7 +541,8 @@ class _MachineEditDialogState extends State<_MachineEditDialog> {
               Expanded(
                 child: TextField(
                   controller: _mapXCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(labelText: '지도 X (0~1)'),
                 ),
               ),
@@ -292,7 +550,8 @@ class _MachineEditDialogState extends State<_MachineEditDialog> {
               Expanded(
                 child: TextField(
                   controller: _mapYCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(labelText: '지도 Y (0~1)'),
                 ),
               ),
@@ -343,11 +602,11 @@ class _MachineEditDialogState extends State<_MachineEditDialog> {
     );
 
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 }
+
+// ── reservation timeline ──────────────────────────────────────────────────────
 
 class _ReservationTimeline extends StatelessWidget {
   const _ReservationTimeline({
@@ -367,7 +626,14 @@ class _ReservationTimeline extends StatelessWidget {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(8),
-          child: Text('기구 정보 없음', style: AppTextStyles.label),
+          child: Text(
+            '기구 정보 없음',
+            style: TextStyle(
+              color: mutedTextColor,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
         ),
       );
     }
@@ -409,7 +675,6 @@ class _TimelinePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final tw = size.width - _labelWidth;
 
-    // Time labels
     const labelPaint = TextStyle(
       color: Color(0xFF7A00FF),
       fontSize: 10,
@@ -430,7 +695,6 @@ class _TimelinePainter extends CustomPainter {
       final machine = machines[mi];
       final rowTop = _headerHeight + mi * _rowHeight;
 
-      // Machine label
       final labelTp = TextPainter(
         text: TextSpan(
           text: machine.name,
@@ -448,7 +712,6 @@ class _TimelinePainter extends CustomPainter {
         Offset(0, rowTop + (_rowHeight - labelTp.height) / 2),
       );
 
-      // Background strip
       final bgRect = Rect.fromLTWH(
         _labelWidth,
         rowTop + _rowPad,
@@ -464,7 +727,6 @@ class _TimelinePainter extends CustomPainter {
           ..strokeWidth = 1,
       );
 
-      // Grid lines every 30 min
       final gridPaint = Paint()
         ..color = const Color(0x30111111)
         ..strokeWidth = 1;
@@ -477,7 +739,6 @@ class _TimelinePainter extends CustomPainter {
         );
       }
 
-      // Reservation bars
       final machineReservations = reservations.where(
         (r) =>
             r.machineId == machine.machineId &&
@@ -512,7 +773,8 @@ class _TimelinePainter extends CustomPainter {
         final barColor = r.status == ReservationStatus.active
             ? const Color(0xFFFF0000)
             : const Color(0xFFFF7A00);
-        final rRect = RRect.fromRectAndRadius(barRect, const Radius.circular(3));
+        final rRect =
+            RRect.fromRectAndRadius(barRect, const Radius.circular(3));
         canvas.drawRRect(rRect, Paint()..color = barColor);
         canvas.drawRRect(
           rRect,
@@ -545,11 +807,11 @@ class _TimelinePainter extends CustomPainter {
         }
       }
 
-      // Current time indicator
       final nowKst = now.toUtc().add(const Duration(hours: 9));
       final nowMin = nowKst.hour * 60.0 + nowKst.minute;
       if (nowMin >= _openHour * 60.0 && nowMin < _closeHour * 60.0) {
-        final nx = _labelWidth + (nowMin - _openHour * 60.0) / _totalMinutes * tw;
+        final nx =
+            _labelWidth + (nowMin - _openHour * 60.0) / _totalMinutes * tw;
         canvas.drawLine(
           Offset(nx, rowTop),
           Offset(nx, rowTop + _rowHeight),
@@ -563,45 +825,4 @@ class _TimelinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _TimelinePainter old) => true;
-}
-
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 68,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        border: Border.all(color: borderColor, width: 3),
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        boxShadow: AppShadows.sticker,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              color: blueColor,
-              fontWeight: FontWeight.w900,
-              fontSize: 18,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.label.copyWith(fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
 }
