@@ -447,11 +447,23 @@ List<BoxShadow> _randomShadows(String seed) {
   });
 }
 
-Path _buildWobblyPath(String seed, Size size) {
+List<BoxShadow> _chipShadows(String seed) {
+  final rng = math.Random(seed.hashCode);
+  const colors = [greenColor, redColor, blueColor, amberColor, borderColor];
+  final count = 1 + rng.nextInt(2);
+  return List.generate(count, (_) {
+    final color = colors[rng.nextInt(colors.length)];
+    final dx = rng.nextDouble() * 4 + 1;
+    final dy = rng.nextDouble() * 4 + 1;
+    return BoxShadow(color: color, offset: Offset(dx, dy), blurRadius: 0);
+  });
+}
+
+Path _buildWobblyPath(String seed, Size size, {double jitterScale = 1.0}) {
   final rng = math.Random(seed.hashCode);
   double j() {
     final sign = rng.nextBool() ? 1 : -1;
-    return sign * (3 + rng.nextDouble() * 3);
+    return sign * (3 + rng.nextDouble() * 3) * jitterScale;
   }
 
   final W = size.width;
@@ -481,15 +493,17 @@ class _WobblyCardPainter extends CustomPainter {
     required this.seed,
     required this.shadows,
     this.fillColor = surfaceColor,
+    this.jitterScale = 1.0,
   });
 
   final String seed;
   final List<BoxShadow> shadows;
   final Color fillColor;
+  final double jitterScale;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final path = _buildWobblyPath(seed, size);
+    final path = _buildWobblyPath(seed, size, jitterScale: jitterScale);
 
     for (final shadow in shadows) {
       canvas.drawPath(
@@ -511,19 +525,21 @@ class _WobblyCardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _WobblyCardPainter old) =>
-      old.seed != seed || old.fillColor != fillColor;
+      old.seed != seed || old.fillColor != fillColor || old.jitterScale != jitterScale;
 }
 
 class _WobblyCardClipper extends CustomClipper<Path> {
-  const _WobblyCardClipper({required this.seed});
+  const _WobblyCardClipper({required this.seed, this.jitterScale = 1.0});
 
   final String seed;
+  final double jitterScale;
 
   @override
-  Path getClip(Size size) => _buildWobblyPath(seed, size);
+  Path getClip(Size size) => _buildWobblyPath(seed, size, jitterScale: jitterScale);
 
   @override
-  bool shouldReclip(covariant _WobblyCardClipper old) => old.seed != seed;
+  bool shouldReclip(covariant _WobblyCardClipper old) =>
+      old.seed != seed || old.jitterScale != jitterScale;
 }
 
 class _WobblyCard extends StatelessWidget {
@@ -1050,9 +1066,9 @@ class _VariantPickerDialogState extends State<_VariantPickerDialog> {
               final rng = math.Random(v.hashCode);
               final angle = (rng.nextDouble() - 0.5) * 0.18;
               final shadows = isSelected
-                  ? [const BoxShadow(color: redColor, offset: Offset(5, 5), blurRadius: 0),
+                  ? [const BoxShadow(color: redColor, offset: Offset(3, 3), blurRadius: 0),
                      const BoxShadow(color: blueColor, offset: Offset(-2, -2), blurRadius: 0)]
-                  : _randomShadows(v);
+                  : _chipShadows(v);
               final fillColor = isSelected ? blueColor : surfaceColor;
 
               return GestureDetector(
@@ -1064,9 +1080,10 @@ class _VariantPickerDialogState extends State<_VariantPickerDialog> {
                       seed: v,
                       shadows: shadows,
                       fillColor: fillColor,
+                      jitterScale: 0.35,
                     ),
                     child: ClipPath(
-                      clipper: _WobblyCardClipper(seed: v),
+                      clipper: _WobblyCardClipper(seed: v, jitterScale: 0.35),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
