@@ -1017,42 +1017,94 @@ class _VariantPickerDialog extends StatefulWidget {
 class _VariantPickerDialogState extends State<_VariantPickerDialog> {
   String? _selected;
 
+  static const _chipColors = [
+    surfaceColor,
+    greenColor,
+    amberColor,
+    lightGrayColor,
+    blueColor,
+  ];
+  static const _shadowColors = [
+    redColor,
+    blueColor,
+    greenColor,
+    amberColor,
+    borderColor,
+  ];
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.title),
+      title: Transform.rotate(
+        angle: -0.03,
+        alignment: Alignment.centerLeft,
+        child: Text(
+          widget.title,
+          style: const TextStyle(
+            color: textColor,
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            shadows: [Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0)],
+          ),
+        ),
+      ),
       content: SizedBox(
         width: double.maxFinite,
         child: SingleChildScrollView(
           child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 10,
+            runSpacing: 14,
             children: widget.variants.map((v) {
               final isSelected = _selected == v;
+              final rng = math.Random(v.hashCode);
+              final chipColor = isSelected
+                  ? blueColor
+                  : _chipColors[rng.nextInt(_chipColors.length)];
+              final shadowColor = isSelected
+                  ? redColor
+                  : _shadowColors[rng.nextInt(_shadowColors.length)];
+              final angle = (rng.nextDouble() - 0.5) * 0.18;
+
               return GestureDetector(
                 onTap: () => setState(() => _selected = v),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 9,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected ? blueColor : surfaceColor,
-                    border: Border.all(
-                      color: isSelected ? blueColor : borderColor,
-                      width: 2.5,
+                child: Transform.rotate(
+                  angle: angle,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 100),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
                     ),
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                    boxShadow: isSelected
-                        ? [const BoxShadow(color: blueColor, offset: Offset(2, 2), blurRadius: 0)]
-                        : AppShadows.sticker,
-                  ),
-                  child: Text(
-                    v,
-                    style: TextStyle(
-                      color: isSelected ? borderColor : textColor,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 13,
+                    decoration: BoxDecoration(
+                      color: chipColor,
+                      border: Border.all(
+                        color: borderColor,
+                        width: isSelected ? 3.5 : 2.5,
+                      ),
+                      borderRadius: BorderRadius.circular(AppRadii.sm),
+                      boxShadow: [
+                        BoxShadow(
+                          color: shadowColor,
+                          offset: const Offset(3, 3),
+                          blurRadius: 0,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      v,
+                      style: const TextStyle(
+                        color: textColor,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                        height: 1.0,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black,
+                            offset: Offset(1, 1),
+                            blurRadius: 0,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
