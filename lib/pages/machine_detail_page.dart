@@ -268,7 +268,7 @@ class MachineDetailPage extends StatelessWidget {
                         ? null
                         : await _askVariant(
                             context,
-                            title: '바벨 무게',
+                            title: machineId == 'dumbbell' ? '덤벨 무게 선택' : '바벨 무게 선택',
                             variants: variants,
                           );
                     if (variants.isNotEmpty && variant == null) return;
@@ -295,7 +295,7 @@ class MachineDetailPage extends StatelessWidget {
                         ? null
                         : await _askVariant(
                             context,
-                            title: '바벨 무게',
+                            title: machineId == 'dumbbell' ? '덤벨 무게 선택' : '바벨 무게 선택',
                             variants: variants,
                           );
                     if (variants.isNotEmpty && variant == null) return;
@@ -357,16 +357,7 @@ class MachineDetailPage extends StatelessWidget {
   }) {
     return showDialog<String>(
       context: context,
-      builder: (_) => SimpleDialog(
-        title: Text(title),
-        children: [
-          for (final variant in variants)
-            SimpleDialogOption(
-              onPressed: () => Navigator.of(context).pop(variant),
-              child: Text(variant),
-            ),
-        ],
-      ),
+      builder: (_) => _VariantPickerDialog(title: title, variants: variants),
     );
   }
 
@@ -714,32 +705,94 @@ class _ReservationDialogState extends State<_ReservationDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final quickPicks = [5, 10, 15, 20, 30]
+        .where((m) => m <= widget.maxMinutes)
+        .toList();
+
     return AlertDialog(
-      title: const Text('예약 시간'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('시작 시간'),
-            subtitle: const Text('21:00~22:50 사이에서 선택'),
-            trailing: FilledButton(
-              onPressed: _pickStartTime,
-              child: Text(_formatTime(_startTime)),
+      title: const Text('예약 시간 설정'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('시작 시간', style: AppTextStyles.label),
+                      const SizedBox(height: 2),
+                      const Text('21:00~23:00 사이', style: AppTextStyles.label),
+                    ],
+                  ),
+                ),
+                FilledButton(
+                  onPressed: _pickStartTime,
+                  child: Text(
+                    _formatTime(_startTime),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _minutesController,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: '분',
-              helperText: '1분부터 ${widget.maxMinutes}분까지 예약할 수 있습니다.',
-              errorText: _errorText,
+            const SizedBox(height: 16),
+            Text('사용 시간 (분)', style: AppTextStyles.label),
+            const SizedBox(height: 8),
+            if (quickPicks.isNotEmpty)
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: quickPicks.map((m) {
+                  final selected = _minutesController.text == '$m';
+                  return GestureDetector(
+                    onTap: () {
+                      _minutesController.text = '$m';
+                      setState(() => _errorText = null);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected ? blueColor : bgColor,
+                        border: Border.all(
+                          color: selected ? blueColor : borderColor,
+                          width: 2.5,
+                        ),
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
+                      ),
+                      child: Text(
+                        '$m분',
+                        style: TextStyle(
+                          color: selected ? borderColor : textColor,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _minutesController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: '직접 입력',
+                helperText: '1~${widget.maxMinutes}분',
+                errorText: _errorText,
+              ),
+              onChanged: (_) => setState(() => _errorText = null),
+              onSubmitted: (_) => _submit(),
             ),
-            onSubmitted: (_) => _submit(),
-          ),
-        ],
+          ],
+        ),
       ),
       actions: [
         TextButton(
@@ -947,6 +1000,79 @@ class _Button extends StatelessWidget {
         minimumSize: const Size(132, 48),
       ),
       child: Text(label),
+    );
+  }
+}
+
+class _VariantPickerDialog extends StatefulWidget {
+  const _VariantPickerDialog({required this.title, required this.variants});
+
+  final String title;
+  final List<String> variants;
+
+  @override
+  State<_VariantPickerDialog> createState() => _VariantPickerDialogState();
+}
+
+class _VariantPickerDialogState extends State<_VariantPickerDialog> {
+  String? _selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: widget.variants.map((v) {
+              final isSelected = _selected == v;
+              return GestureDetector(
+                onTap: () => setState(() => _selected = v),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected ? blueColor : surfaceColor,
+                    border: Border.all(
+                      color: isSelected ? blueColor : borderColor,
+                      width: 2.5,
+                    ),
+                    borderRadius: BorderRadius.circular(AppRadii.pill),
+                    boxShadow: isSelected
+                        ? [const BoxShadow(color: blueColor, offset: Offset(2, 2), blurRadius: 0)]
+                        : AppShadows.sticker,
+                  ),
+                  child: Text(
+                    v,
+                    style: TextStyle(
+                      color: isSelected ? borderColor : textColor,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('취소'),
+        ),
+        FilledButton(
+          onPressed: _selected == null
+              ? null
+              : () => Navigator.of(context).pop(_selected),
+          child: const Text('선택'),
+        ),
+      ],
     );
   }
 }

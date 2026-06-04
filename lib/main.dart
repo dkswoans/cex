@@ -121,12 +121,20 @@ class ApdoApp extends StatelessWidget {
             titleTextStyle: AppTextStyles.sectionTitle,
             contentTextStyle: AppTextStyles.value,
           ),
-          snackBarTheme: const SnackBarThemeData(
-            backgroundColor: textColor,
-            contentTextStyle: TextStyle(
+          snackBarTheme: SnackBarThemeData(
+            backgroundColor: borderColor,
+            contentTextStyle: const TextStyle(
               color: bgColor,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w900,
+              fontSize: 14,
+              letterSpacing: 0.3,
             ),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.md),
+              side: const BorderSide(color: surfaceColor, width: 3),
+            ),
+            elevation: 0,
           ),
         ),
         home: const LoginPage(),

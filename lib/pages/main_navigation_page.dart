@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
 import 'admin_page.dart';
 import 'home_page.dart';
-import 'my_reservation_page.dart';
+import 'my_page.dart';
 
 class MainNavigationPage extends StatefulWidget {
   const MainNavigationPage({super.key});
@@ -15,12 +17,18 @@ class MainNavigationPage extends StatefulWidget {
 class _MainNavigationPageState extends State<MainNavigationPage> {
   int _selectedIndex = 0;
 
-  static const _pages = [HomePage(), MyReservationPage(), AdminPage()];
+  static const _pagesAdmin = [HomePage(), MyPage(), AdminPage()];
+  static const _pagesUser = [HomePage(), MyPage()];
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin =
+        context.watch<GymProvider>().currentUser?.role == 'admin';
+    final pages = isAdmin ? _pagesAdmin : _pagesUser;
+    final tabIndex = _selectedIndex.clamp(0, pages.length - 1);
+
     return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: _pages),
+      body: IndexedStack(index: tabIndex, children: pages),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: surfaceColor,
@@ -42,26 +50,27 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
               letterSpacing: 0.4,
             ),
           ),
-          selectedIndex: _selectedIndex,
+          selectedIndex: tabIndex,
           onDestinationSelected: (index) {
             setState(() => _selectedIndex = index);
           },
-          destinations: const [
-            NavigationDestination(
+          destinations: [
+            const NavigationDestination(
               icon: Icon(Icons.map_outlined, color: blueColor),
               selectedIcon: Icon(Icons.map, color: textColor),
               label: '지도봄',
             ),
-            NavigationDestination(
-              icon: Icon(Icons.list_alt_outlined, color: blueColor),
-              selectedIcon: Icon(Icons.list_alt, color: textColor),
-              label: '내찜',
+            const NavigationDestination(
+              icon: Icon(Icons.person_outline, color: blueColor),
+              selectedIcon: Icon(Icons.person, color: textColor),
+              label: '마이',
             ),
-            NavigationDestination(
-              icon: Icon(Icons.admin_panel_settings_outlined, color: blueColor),
-              selectedIcon: Icon(Icons.admin_panel_settings, color: textColor),
-              label: '관리질',
-            ),
+            if (isAdmin)
+              const NavigationDestination(
+                icon: Icon(Icons.admin_panel_settings_outlined, color: blueColor),
+                selectedIcon: Icon(Icons.admin_panel_settings, color: textColor),
+                label: '관리질',
+              ),
           ],
         ),
       ),

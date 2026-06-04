@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/machine_model.dart';
+import '../models/reservation_model.dart';
 import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
 import '../widgets/app_design.dart';
@@ -72,6 +73,14 @@ class AdminPage extends StatelessWidget {
                       : () => _confirmReset(context, provider),
                   icon: const Icon(Icons.restore),
                   label: const Text('데모 데이터 초기화'),
+                ),
+                const SizedBox(height: 20),
+                const AppSectionTitle('기구별 예약 시간표'),
+                AppRecordCard(
+                  child: _ReservationTimeline(
+                    machines: provider.machines,
+                    reservations: provider.reservations,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 const AppSectionTitle('기구 목록'),
@@ -338,6 +347,222 @@ class _MachineEditDialogState extends State<_MachineEditDialog> {
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
+}
+
+class _ReservationTimeline extends StatelessWidget {
+  const _ReservationTimeline({
+    required this.machines,
+    required this.reservations,
+  });
+
+  final List<MachineModel> machines;
+  final List<ReservationModel> reservations;
+
+  static const _rowHeight = 36.0;
+  static const _headerHeight = 22.0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (machines.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(8),
+          child: Text('기구 정보 없음', style: AppTextStyles.label),
+        ),
+      );
+    }
+    final height = _headerHeight + machines.length * _rowHeight;
+    return SizedBox(
+      height: height,
+      child: CustomPaint(
+        painter: _TimelinePainter(
+          machines: machines,
+          reservations: reservations,
+          now: DateTime.now(),
+        ),
+        size: Size.infinite,
+      ),
+    );
+  }
+}
+
+class _TimelinePainter extends CustomPainter {
+  const _TimelinePainter({
+    required this.machines,
+    required this.reservations,
+    required this.now,
+  });
+
+  final List<MachineModel> machines;
+  final List<ReservationModel> reservations;
+  final DateTime now;
+
+  static const _openHour = 21;
+  static const _closeHour = 23;
+  static const _totalMinutes = (_closeHour - _openHour) * 60.0;
+  static const _labelWidth = 72.0;
+  static const _rowHeight = 36.0;
+  static const _headerHeight = 22.0;
+  static const _rowPad = 5.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final tw = size.width - _labelWidth;
+
+    // Time labels
+    const labelPaint = TextStyle(
+      color: Color(0xFF7A00FF),
+      fontSize: 10,
+      fontWeight: FontWeight.w800,
+    );
+    final timeLabels = ['21:00', '21:30', '22:00', '22:30', '23:00'];
+    for (var i = 0; i < timeLabels.length; i++) {
+      final x = _labelWidth + i / (timeLabels.length - 1) * tw;
+      final tp = TextPainter(
+        text: TextSpan(text: timeLabels[i], style: labelPaint),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final clampedX = (x - tp.width / 2).clamp(0.0, size.width - tp.width);
+      tp.paint(canvas, Offset(clampedX, 2));
+    }
+
+    for (var mi = 0; mi < machines.length; mi++) {
+      final machine = machines[mi];
+      final rowTop = _headerHeight + mi * _rowHeight;
+
+      // Machine label
+      final labelTp = TextPainter(
+        text: TextSpan(
+          text: machine.name,
+          style: const TextStyle(
+            color: Color(0xFF7A00FF),
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout(maxWidth: _labelWidth - 4);
+      labelTp.paint(
+        canvas,
+        Offset(0, rowTop + (_rowHeight - labelTp.height) / 2),
+      );
+
+      // Background strip
+      final bgRect = Rect.fromLTWH(
+        _labelWidth,
+        rowTop + _rowPad,
+        tw,
+        _rowHeight - _rowPad * 2,
+      );
+      canvas.drawRect(bgRect, Paint()..color = const Color(0x30FFF200));
+      canvas.drawRect(
+        bgRect,
+        Paint()
+          ..color = const Color(0x30111111)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+
+      // Grid lines every 30 min
+      final gridPaint = Paint()
+        ..color = const Color(0x30111111)
+        ..strokeWidth = 1;
+      for (var g = 1; g < 4; g++) {
+        final gx = _labelWidth + g / 4 * tw;
+        canvas.drawLine(
+          Offset(gx, rowTop + _rowPad),
+          Offset(gx, rowTop + _rowHeight - _rowPad),
+          gridPaint,
+        );
+      }
+
+      // Reservation bars
+      final machineReservations = reservations.where(
+        (r) =>
+            r.machineId == machine.machineId &&
+            (r.status == ReservationStatus.waiting ||
+                r.status == ReservationStatus.active),
+      );
+
+      for (final r in machineReservations) {
+        final startAt = r.reservedStartAt;
+        final endAt = r.reservedEndAt;
+        if (startAt == null || endAt == null) continue;
+
+        final startKst = startAt.toUtc().add(const Duration(hours: 9));
+        final endKst = endAt.toUtc().add(const Duration(hours: 9));
+        final openMinutes = _openHour * 60.0;
+        final closeMinutes = _closeHour * 60.0;
+        final sMin = (startKst.hour * 60.0 + startKst.minute)
+            .clamp(openMinutes, closeMinutes);
+        final eMin = (endKst.hour * 60.0 + endKst.minute)
+            .clamp(openMinutes, closeMinutes);
+        if (sMin >= eMin) continue;
+
+        final left = _labelWidth + (sMin - openMinutes) / _totalMinutes * tw;
+        final width = (eMin - sMin) / _totalMinutes * tw;
+        final barRect = Rect.fromLTWH(
+          left + 1,
+          rowTop + _rowPad + 2,
+          width - 2,
+          _rowHeight - _rowPad * 2 - 4,
+        );
+
+        final barColor = r.status == ReservationStatus.active
+            ? const Color(0xFFFF0000)
+            : const Color(0xFFFF7A00);
+        final rRect = RRect.fromRectAndRadius(barRect, const Radius.circular(3));
+        canvas.drawRRect(rRect, Paint()..color = barColor);
+        canvas.drawRRect(
+          rRect,
+          Paint()
+            ..color = const Color(0xFF111111)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5,
+        );
+
+        if (barRect.width > 18) {
+          final userTp = TextPainter(
+            text: TextSpan(
+              text: r.userName,
+              style: const TextStyle(
+                color: Color(0xFF111111),
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+            maxLines: 1,
+          )..layout(maxWidth: barRect.width - 4);
+          userTp.paint(
+            canvas,
+            Offset(
+              barRect.left + 2,
+              barRect.top + (barRect.height - userTp.height) / 2,
+            ),
+          );
+        }
+      }
+
+      // Current time indicator
+      final nowKst = now.toUtc().add(const Duration(hours: 9));
+      final nowMin = nowKst.hour * 60.0 + nowKst.minute;
+      if (nowMin >= _openHour * 60.0 && nowMin < _closeHour * 60.0) {
+        final nx = _labelWidth + (nowMin - _openHour * 60.0) / _totalMinutes * tw;
+        canvas.drawLine(
+          Offset(nx, rowTop),
+          Offset(nx, rowTop + _rowHeight),
+          Paint()
+            ..color = const Color(0xFF0019FF)
+            ..strokeWidth = 2,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TimelinePainter old) => true;
 }
 
 class _MetricCard extends StatelessWidget {

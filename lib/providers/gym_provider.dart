@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel, PostgresChangeEvent;
 
 import '../data/machine_seed_data.dart';
 import '../models/machine_model.dart';
@@ -10,12 +11,13 @@ import '../models/user_model.dart';
 import '../services/supabase_config.dart';
 
 class GymProvider extends ChangeNotifier {
-  static const bool _bypassBusinessHoursForTesting = true;
+  static const bool _bypassBusinessHoursForTesting = false;
   static const String _multiUserSeparator = '|';
 
   GymProvider() {
     syncFromDatabase();
     _startReservationTimer();
+    _initRealtime();
   }
 
   UserModel? currentUser;
@@ -27,6 +29,8 @@ class GymProvider extends ChangeNotifier {
   String? errorMessage;
   Timer? _reservationTimer;
   bool _isApplyingReservationWindows = false;
+  RealtimeChannel? _realtimeChannel;
+  Timer? _realtimeDebounce;
 
   Future<String> _runAction(Future<String> Function() action) async {
     isActionLoading = true;
@@ -42,6 +46,8 @@ class GymProvider extends ChangeNotifier {
   @override
   void dispose() {
     _reservationTimer?.cancel();
+    _realtimeDebounce?.cancel();
+    _realtimeChannel?.unsubscribe();
     super.dispose();
   }
 
@@ -89,7 +95,8 @@ class GymProvider extends ChangeNotifier {
         );
       await _applyReservationWindows();
     } catch (error) {
-      errorMessage = 'Supabase 데이터를 불러오지 못했습니다: $error';
+      debugPrint('[GymProvider] syncFromDatabase error: $error');
+      errorMessage = '데이터를 불러오지 못했습니다.';
     } finally {
       isLoading = false;
       notifyListeners();
@@ -200,6 +207,45 @@ class GymProvider extends ChangeNotifier {
                   reservation.status == ReservationStatus.active),
         )
         .firstOrNull;
+  }
+
+  MachineModel? getMachineCurrentlyUsedByMe() {
+    final user = currentUser;
+    if (user == null) return null;
+    for (final machine in machines) {
+      if (isUserUsingMachine(machine.machineId)) return machine;
+    }
+    return null;
+  }
+
+  int getWeeklyUsageMinutes() {
+    final user = currentUser;
+    if (user == null) return 0;
+    final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+    return usageLogs
+        .where((log) => log.userId == user.userId && log.endedAt.isAfter(weekAgo))
+        .fold(0, (sum, log) => sum + log.usedMinutes);
+  }
+
+  int getWeeklySessionCount() {
+    final user = currentUser;
+    if (user == null) return 0;
+    final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+    return usageLogs
+        .where((log) => log.userId == user.userId && log.endedAt.isAfter(weekAgo))
+        .length;
+  }
+
+  List<MapEntry<String, int>> getTopMachinesByUsage(int n) {
+    final user = currentUser;
+    if (user == null) return [];
+    final Map<String, int> totals = {};
+    for (final log in usageLogs.where((log) => log.userId == user.userId)) {
+      totals[log.machineName] = (totals[log.machineName] ?? 0) + log.usedMinutes;
+    }
+    return (totals.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
+        .take(n)
+        .toList();
   }
 
   List<String> getMachineVariants(String machineId) {
@@ -331,7 +377,6 @@ class GymProvider extends ChangeNotifier {
     final now = DateTime.now();
     final capacity = getMachineCapacity(machineId);
 
-    // reservation 기반 점유 수
     final reservationCount = _overlappingReservationCount(
       machineId,
       startAt: now,
@@ -340,7 +385,6 @@ class GymProvider extends ChangeNotifier {
     );
     if (reservationCount >= capacity) return false;
 
-    // 예약 없이 직접 사용 중인 유저 수 (currentUserId 기준)
     final machine = getMachineById(machineId);
     final currentIds = _splitMultiValue(machine.currentUserId);
     final directCount = variantLabel != null
@@ -458,7 +502,8 @@ class GymProvider extends ChangeNotifier {
       await syncFromDatabase();
       return '예약이 완료되었습니다.';
     } catch (error) {
-      return '예약에 실패했습니다: $error';
+      debugPrint('[GymProvider] reserveMachine error: $error');
+      return '예약에 실패했습니다.';
     }
   });
 
@@ -482,7 +527,8 @@ class GymProvider extends ChangeNotifier {
       await syncFromDatabase();
       return '예약을 취소했습니다.';
     } catch (error) {
-      return '예약 취소에 실패했습니다: $error';
+      debugPrint('[GymProvider] cancelReservation error: $error');
+      return '예약 취소에 실패했습니다.';
     }
   });
 
@@ -593,7 +639,8 @@ class GymProvider extends ChangeNotifier {
       await syncFromDatabase();
       return '사용을 시작했습니다.';
     } catch (error) {
-      return '사용 시작에 실패했습니다: $error';
+      debugPrint('[GymProvider] startUsingMachine error: $error');
+      return '사용 시작에 실패했습니다.';
     }
   });
 
@@ -690,7 +737,8 @@ class GymProvider extends ChangeNotifier {
       await syncFromDatabase();
       return '사용을 종료했습니다.';
     } catch (error) {
-      return '사용 종료에 실패했습니다: $error';
+      debugPrint('[GymProvider] finishUsingMachine error: $error');
+      return '사용 종료에 실패했습니다.';
     }
   });
 
@@ -722,7 +770,8 @@ class GymProvider extends ChangeNotifier {
       await syncFromDatabase();
       return goingToRepair ? '점검 상태로 변경되었습니다.' : '점검이 해제되었습니다.';
     } catch (error) {
-      return '상태 변경에 실패했습니다: $error';
+      debugPrint('[GymProvider] toggleRepairStatus error: $error');
+      return '상태 변경에 실패했습니다.';
     }
   });
 
@@ -744,7 +793,8 @@ class GymProvider extends ChangeNotifier {
       await syncFromDatabase();
       return '설정이 저장되었습니다.';
     } catch (error) {
-      return '저장에 실패했습니다: $error';
+      debugPrint('[GymProvider] updateMachineSettings error: $error');
+      return '저장에 실패했습니다.';
     }
   });
 
@@ -791,18 +841,16 @@ class GymProvider extends ChangeNotifier {
 
   int getAvailableUseMinutesNow(MachineModel machine) {
     if (_bypassBusinessHoursForTesting) {
-      return machine.maxUseMinutes.clamp(1, 15);
+      return machine.maxUseMinutes;
     }
 
     final now = _koreaTime(DateTime.now());
     final closeAt = _businessCloseAt(now);
     final remainingUntilClose = closeAt.difference(now).inMinutes;
     if (remainingUntilClose <= 0 || !_startsInBusinessHours(now)) return 0;
-    return [
-      machine.maxUseMinutes,
-      15,
-      remainingUntilClose,
-    ].reduce((value, element) => value < element ? value : element);
+    return machine.maxUseMinutes < remainingUntilClose
+        ? machine.maxUseMinutes
+        : remainingUntilClose;
   }
 
   int _compareReservationsByStartTime(ReservationModel a, ReservationModel b) {
@@ -902,6 +950,30 @@ class GymProvider extends ChangeNotifier {
     });
   }
 
+  void _initRealtime() {
+    final channel = SupabaseConfig.client.channel('gym_realtime');
+    channel
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'machines',
+          callback: (_) => _scheduleRealtimeSync(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'reservations',
+          callback: (_) => _scheduleRealtimeSync(),
+        )
+        .subscribe();
+    _realtimeChannel = channel;
+  }
+
+  void _scheduleRealtimeSync() {
+    _realtimeDebounce?.cancel();
+    _realtimeDebounce = Timer(const Duration(milliseconds: 800), syncFromDatabase);
+  }
+
   Future<bool> _applyReservationWindows() async {
     if (_isApplyingReservationWindows) return false;
     _isApplyingReservationWindows = true;
@@ -978,7 +1050,7 @@ class GymProvider extends ChangeNotifier {
     }
 
     if (startKst.isBefore(openAt) || endKst.isAfter(closeAt)) {
-      return '$actionName은 21:00부터 22:50 안에서만 가능합니다.';
+      return '$actionName은 21:00부터 23:00 안에서만 가능합니다.';
     }
 
     return null;
@@ -999,7 +1071,7 @@ class GymProvider extends ChangeNotifier {
   }
 
   DateTime _businessCloseAt(DateTime koreaTime) {
-    return DateTime(koreaTime.year, koreaTime.month, koreaTime.day, 22, 50);
+    return DateTime(koreaTime.year, koreaTime.month, koreaTime.day, 23);
   }
 
   Future<void> _updateMachine(MachineModel machine) async {
