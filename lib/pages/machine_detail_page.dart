@@ -477,10 +477,15 @@ Path _buildWobblyPath(String seed, Size size) {
 }
 
 class _WobblyCardPainter extends CustomPainter {
-  const _WobblyCardPainter({required this.seed, required this.shadows});
+  const _WobblyCardPainter({
+    required this.seed,
+    required this.shadows,
+    this.fillColor = surfaceColor,
+  });
 
   final String seed;
   final List<BoxShadow> shadows;
+  final Color fillColor;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -493,7 +498,7 @@ class _WobblyCardPainter extends CustomPainter {
       );
     }
 
-    canvas.drawPath(path, Paint()..color = surfaceColor);
+    canvas.drawPath(path, Paint()..color = fillColor);
 
     canvas.drawPath(
       path,
@@ -505,7 +510,8 @@ class _WobblyCardPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _WobblyCardPainter old) => old.seed != seed;
+  bool shouldRepaint(covariant _WobblyCardPainter old) =>
+      old.seed != seed || old.fillColor != fillColor;
 }
 
 class _WobblyCardClipper extends CustomClipper<Path> {
@@ -1017,21 +1023,6 @@ class _VariantPickerDialog extends StatefulWidget {
 class _VariantPickerDialogState extends State<_VariantPickerDialog> {
   String? _selected;
 
-  static const _chipColors = [
-    surfaceColor,
-    greenColor,
-    amberColor,
-    lightGrayColor,
-    blueColor,
-  ];
-  static const _shadowColors = [
-    redColor,
-    blueColor,
-    greenColor,
-    amberColor,
-    borderColor,
-  ];
-
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -1052,58 +1043,51 @@ class _VariantPickerDialogState extends State<_VariantPickerDialog> {
         width: double.maxFinite,
         child: SingleChildScrollView(
           child: Wrap(
-            spacing: 10,
-            runSpacing: 14,
+            spacing: 14,
+            runSpacing: 18,
             children: widget.variants.map((v) {
               final isSelected = _selected == v;
               final rng = math.Random(v.hashCode);
-              final chipColor = isSelected
-                  ? blueColor
-                  : _chipColors[rng.nextInt(_chipColors.length)];
-              final shadowColor = isSelected
-                  ? redColor
-                  : _shadowColors[rng.nextInt(_shadowColors.length)];
               final angle = (rng.nextDouble() - 0.5) * 0.18;
+              final shadows = isSelected
+                  ? [const BoxShadow(color: redColor, offset: Offset(5, 5), blurRadius: 0),
+                     const BoxShadow(color: blueColor, offset: Offset(-2, -2), blurRadius: 0)]
+                  : _randomShadows(v);
+              final fillColor = isSelected ? blueColor : surfaceColor;
 
               return GestureDetector(
                 onTap: () => setState(() => _selected = v),
                 child: Transform.rotate(
                   angle: angle,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 100),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+                  child: CustomPaint(
+                    painter: _WobblyCardPainter(
+                      seed: v,
+                      shadows: shadows,
+                      fillColor: fillColor,
                     ),
-                    decoration: BoxDecoration(
-                      color: chipColor,
-                      border: Border.all(
-                        color: borderColor,
-                        width: isSelected ? 3.5 : 2.5,
-                      ),
-                      borderRadius: BorderRadius.circular(AppRadii.sm),
-                      boxShadow: [
-                        BoxShadow(
-                          color: shadowColor,
-                          offset: const Offset(3, 3),
-                          blurRadius: 0,
+                    child: ClipPath(
+                      clipper: _WobblyCardClipper(seed: v),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
                         ),
-                      ],
-                    ),
-                    child: Text(
-                      v,
-                      style: const TextStyle(
-                        color: textColor,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 13,
-                        height: 1.0,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black,
-                            offset: Offset(1, 1),
-                            blurRadius: 0,
+                        child: Text(
+                          v,
+                          style: TextStyle(
+                            color: isSelected ? bgColor : textColor,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 13,
+                            height: 1.0,
+                            shadows: const [
+                              Shadow(
+                                color: Colors.black,
+                                offset: Offset(1, 1),
+                                blurRadius: 0,
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
