@@ -221,9 +221,28 @@ class _MyPageState extends State<MyPage> {
   }
 
   Widget _sectionLabel(String text) {
+    final rng = math.Random(text.hashCode);
+    final angle = (rng.nextDouble() - 0.5) * 0.12;
+    const colors = [textColor, blueColor, redColor, amberColor];
+    final color = colors[rng.nextInt(colors.length)];
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4, top: 4),
-      child: Text(text, style: AppTextStyles.sectionTitle),
+      padding: const EdgeInsets.only(bottom: 2, top: 10),
+      child: Transform.rotate(
+        alignment: Alignment.centerLeft,
+        angle: angle,
+        child: Text(
+          text,
+          style: TextStyle(
+            color: color,
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.5,
+            shadows: const [
+              Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -404,12 +423,8 @@ class _ProfileContent extends StatelessWidget {
       children: [
         _bigTitle(user.name, 'profile_name_${user.userId}'),
         const SizedBox(height: 10),
-        Transform.rotate(
-          alignment: Alignment.centerLeft,
-          angle: 0.03,
-          child: Text(user.userId, style: AppTextStyles.label),
-        ),
-        const SizedBox(height: 10),
+        _funRow('학번', user.userId, 'profile_id_${user.userId}'),
+        const SizedBox(height: 4),
         Transform.rotate(
           angle: -0.04,
           alignment: Alignment.centerLeft,
