@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +11,7 @@ import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
 import '../utils/time_utils.dart';
 import '../widgets/app_design.dart';
+import '../widgets/wobbly_card.dart';
 import 'login_page.dart';
 
 class MyPage extends StatefulWidget {
@@ -42,9 +44,7 @@ class _MyPageState extends State<MyPage> {
       builder: (context, provider, _) {
         final user = provider.currentUser;
         if (user == null) {
-          return const Scaffold(
-            body: Center(child: Text('로그인이 필요합니다.')),
-          );
+          return const Scaffold(body: Center(child: Text('로그인이 필요합니다.')));
         }
 
         final currentMachine = provider.getMachineCurrentlyUsedByMe();
@@ -80,97 +80,118 @@ class _MyPageState extends State<MyPage> {
           body: RefreshIndicator(
             onRefresh: provider.syncFromDatabase,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               children: [
-                _ProfileCard(user: user),
-                const SizedBox(height: 20),
-                if (currentMachine != null) ...[
-                  const AppSectionTitle('현재 사용 중'),
-                  _CurrentUsageCard(
-                    machine: currentMachine,
-                    provider: provider,
-                    isLoading: isLoading,
-                    onFinish: () =>
-                        _confirmFinish(context, provider, currentMachine.machineId),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-                const AppSectionTitle('예약 현황'),
-                if (myReservations.isEmpty)
-                  const AppEmptyPanel(text: '예약한 기구가 없습니다.')
-                else
-                  ...myReservations.map(
-                    (r) => _MyReservationCard(
-                      reservation: r,
-                      estimatedWaitMinutes: provider.getEstimatedWaitMinutes(
-                        r.machineId,
-                        r.userId,
-                      ),
-                      isLoading: isLoading,
-                      onCancel: () =>
-                          _confirmCancel(context, provider, r.reservationId),
-                    ),
-                  ),
-                const SizedBox(height: 20),
-                const AppSectionTitle('이번 주 운동'),
-                _WeeklyStatsCard(
-                  weeklyMinutes: weeklyMinutes,
-                  sessionCount: weeklyCount,
+                _tiltedCard(
+                  seed: 'profile_${user.userId}',
+                  child: _ProfileContent(user: user),
                 ),
-                const SizedBox(height: 20),
-                if (topMachines.isNotEmpty) ...[
-                  const AppSectionTitle('많이 쓴 기구 TOP 3'),
-                  ...topMachines.asMap().entries.map(
-                    (e) => _TopMachineCard(
-                      rank: e.key + 1,
-                      name: e.value.key,
-                      minutes: e.value.value,
+                const SizedBox(height: 8),
+                if (currentMachine != null) ...[
+                  _sectionLabel('현재 사용 중'),
+                  _tiltedCard(
+                    seed: 'using_${currentMachine.machineId}',
+                    shadows: const [
+                      BoxShadow(color: redColor, offset: Offset(6, 6), blurRadius: 0),
+                      BoxShadow(color: blueColor, offset: Offset(-3, -3), blurRadius: 0),
+                    ],
+                    child: _CurrentUsageContent(
+                      machine: currentMachine,
+                      provider: provider,
+                      isLoading: isLoading,
+                      onFinish: () =>
+                          _confirmFinish(context, provider, currentMachine.machineId),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 8),
                 ],
-                const AppSectionTitle('최근 이용 기록'),
-                if (recentLogs.isEmpty)
-                  const AppEmptyPanel(text: '이용 기록이 없습니다.')
+                _sectionLabel('예약 현황'),
+                if (myReservations.isEmpty)
+                  _tiltedCard(
+                    seed: 'no_res',
+                    child: const Center(
+                      child: Text('예약한 기구가 없습니다.', style: AppTextStyles.empty),
+                    ),
+                  )
                 else
-                  ...recentLogs.map(
-                    (log) => AppRecordCard(
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(log.machineName, style: AppTextStyles.itemTitle),
-                                const SizedBox(height: 4),
-                                Text(
-                                  formatDateTime(log.endedAt),
-                                  style: AppTextStyles.label,
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            '${log.usedMinutes}분',
-                            style: const TextStyle(
-                              color: blueColor,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ],
+                  ...myReservations.asMap().entries.map(
+                    (e) => _tiltedCard(
+                      seed: 'res_${e.value.reservationId}',
+                      child: _ReservationContent(
+                        reservation: e.value,
+                        estimatedWaitMinutes: provider.getEstimatedWaitMinutes(
+                          e.value.machineId,
+                          e.value.userId,
+                        ),
+                        isLoading: isLoading,
+                        onCancel: () => _confirmCancel(
+                          context,
+                          provider,
+                          e.value.reservationId,
+                        ),
                       ),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                _sectionLabel('이번 주 운동'),
+                _tiltedCard(
+                  seed: 'weekly_stats',
+                  child: _WeeklyContent(
+                    weeklyMinutes: weeklyMinutes,
+                    sessionCount: weeklyCount,
+                  ),
+                ),
+                if (topMachines.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _sectionLabel('많이 쓴 기구 TOP 3'),
+                  ...topMachines.asMap().entries.map(
+                    (e) => _tiltedCard(
+                      seed: 'top_${e.key}_${e.value.key}',
+                      child: _TopMachineContent(
+                        rank: e.key + 1,
+                        name: e.value.key,
+                        minutes: e.value.value,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                _sectionLabel('최근 이용 기록'),
+                if (recentLogs.isEmpty)
+                  _tiltedCard(
+                    seed: 'no_logs',
+                    child: const Center(
+                      child: Text('이용 기록이 없습니다.', style: AppTextStyles.empty),
+                    ),
+                  )
+                else
+                  ...recentLogs.asMap().entries.map(
+                    (e) => _tiltedCard(
+                      seed: 'log_${e.key}_${e.value.logId}',
+                      child: _LogContent(log: e.value),
                     ),
                   ),
                 const SizedBox(height: 24),
-                OutlinedButton.icon(
-                  onPressed: () => _confirmLogout(context, provider),
-                  icon: const Icon(Icons.logout),
-                  label: const Text('로그아웃'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: redColor,
-                    backgroundColor: bgColor,
-                    side: const BorderSide(color: redColor, width: 2.5),
+                _tiltedCard(
+                  seed: 'logout_btn',
+                  shadows: const [
+                    BoxShadow(color: redColor, offset: Offset(4, 4), blurRadius: 0),
+                  ],
+                  child: GestureDetector(
+                    onTap: () => _confirmLogout(context, provider),
+                    child: const Center(
+                      child: Text(
+                        '로그아웃',
+                        style: TextStyle(
+                          color: redColor,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          shadows: [
+                            Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 72),
@@ -179,6 +200,30 @@ class _MyPageState extends State<MyPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _tiltedCard({
+    required String seed,
+    required Widget child,
+    List<BoxShadow>? shadows,
+  }) {
+    final angle =
+        (math.Random(seed.hashCode ^ 0xABCD).nextDouble() - 0.5) * 0.06;
+    return Transform.rotate(
+      angle: angle,
+      child: WobblyCard(
+        seed: seed,
+        shadows: shadows ?? randomShadows(seed),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4, top: 4),
+      child: Text(text, style: AppTextStyles.sectionTitle),
     );
   }
 
@@ -268,43 +313,115 @@ class _MyPageState extends State<MyPage> {
   }
 }
 
-class _ProfileCard extends StatelessWidget {
-  const _ProfileCard({required this.user});
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+Widget _bigTitle(String text, String seed) {
+  final rng = math.Random(seed.hashCode);
+  final angle = (rng.nextDouble() - 0.5) * 0.22;
+  const colors = [greenColor, blueColor, amberColor, redColor];
+  final color = colors[rng.nextInt(colors.length)];
+  return Transform.rotate(
+    alignment: Alignment.centerLeft,
+    angle: angle,
+    child: Text(
+      text,
+      style: TextStyle(
+        color: color,
+        fontSize: 30,
+        fontWeight: FontWeight.w900,
+        height: 1.0,
+        letterSpacing: 0.8,
+        shadows: const [
+          Shadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _funRow(String label, String value, String seed) {
+  final rng = math.Random(seed.hashCode);
+  final rowAngle = (rng.nextDouble() - 0.5) * 0.10;
+  final labelAngle = (rng.nextDouble() - 0.5) * 0.14;
+  final valueAngle = (rng.nextDouble() - 0.5) * 0.12;
+  const colors = [greenColor, redColor, amberColor, blueColor];
+  final labelColor = colors[rng.nextInt(colors.length)];
+  final valueColor = colors[rng.nextInt(colors.length)];
+
+  return Transform.rotate(
+    alignment: Alignment.centerLeft,
+    angle: rowAngle,
+    child: Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Transform.rotate(
+            angle: labelAngle,
+            child: Text(
+              '$label  ',
+              style: TextStyle(
+                color: labelColor,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                shadows: const [
+                  Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
+                ],
+              ),
+            ),
+          ),
+          Transform.rotate(
+            angle: valueAngle,
+            child: Text(
+              value,
+              style: TextStyle(
+                color: valueColor,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                shadows: const [
+                  Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// ── section content widgets ───────────────────────────────────────────────────
+
+class _ProfileContent extends StatelessWidget {
+  const _ProfileContent({required this.user});
 
   final UserModel user;
 
   @override
   Widget build(BuildContext context) {
-    return AppRecordCard(
-      shadows: AppShadows.loud,
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: blueColor,
-            foregroundColor: textColor,
-            child: Text(
-              user.name.isNotEmpty ? user.name[0] : '?',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(user.name, style: AppTextStyles.itemTitle),
-                const SizedBox(height: 4),
-                Text(user.userId, style: AppTextStyles.label),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _bigTitle(user.name, 'profile_name_${user.userId}'),
+        const SizedBox(height: 10),
+        Transform.rotate(
+          alignment: Alignment.centerLeft,
+          angle: 0.03,
+          child: Text(user.userId, style: AppTextStyles.label),
+        ),
+        const SizedBox(height: 10),
+        Transform.rotate(
+          angle: -0.04,
+          alignment: Alignment.centerLeft,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
               color: user.role == 'admin' ? redColor : greenColor,
-              borderRadius: BorderRadius.circular(AppRadii.pill),
-              border: Border.all(color: borderColor, width: 2),
+              border: Border.all(color: borderColor, width: 2.5),
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              boxShadow: const [
+                BoxShadow(color: borderColor, offset: Offset(2, 2), blurRadius: 0),
+              ],
             ),
             child: Text(
               user.role == 'admin' ? '관리자' : '일반',
@@ -315,14 +432,14 @@ class _ProfileCard extends StatelessWidget {
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _CurrentUsageCard extends StatelessWidget {
-  const _CurrentUsageCard({
+class _CurrentUsageContent extends StatelessWidget {
+  const _CurrentUsageContent({
     required this.machine,
     required this.provider,
     required this.isLoading,
@@ -337,51 +454,29 @@ class _CurrentUsageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final remaining = provider.getRemainingMinutes(machine);
-    return AppRecordCard(
-      shadows: const [
-        BoxShadow(color: redColor, offset: Offset(5, 5), blurRadius: 0),
-        BoxShadow(color: blueColor, offset: Offset(-3, -3), blurRadius: 0),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _bigTitle(machine.name, 'using_title_${machine.machineId}'),
+        const SizedBox(height: 12),
+        _funRow('남은 시간', formatRemainingMinutes(remaining), 'using_rem_${machine.machineId}'),
+        _funRow('종료 예정', formatTimeOnly(machine.endAt), 'using_end_${machine.machineId}'),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: isLoading ? null : onFinish,
+            style: FilledButton.styleFrom(backgroundColor: redColor),
+            child: const Text('사용 종료'),
+          ),
+        ),
       ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(machine.name, style: AppTextStyles.itemTitle),
-              ),
-              Text(
-                formatRemainingMinutes(remaining),
-                style: const TextStyle(
-                  color: redColor,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          AppInfoRow(
-            label: '종료 예정',
-            value: formatTimeOnly(machine.endAt),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: isLoading ? null : onFinish,
-              style: FilledButton.styleFrom(backgroundColor: redColor),
-              child: const Text('사용 종료'),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
 
-class _MyReservationCard extends StatelessWidget {
-  const _MyReservationCard({
+class _ReservationContent extends StatelessWidget {
+  const _ReservationContent({
     required this.reservation,
     required this.estimatedWaitMinutes,
     required this.isLoading,
@@ -396,21 +491,25 @@ class _MyReservationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isActive = reservation.status == ReservationStatus.active;
-    return AppRecordCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(reservation.machineName, style: AppTextStyles.itemTitle),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+    final seed = 'res_content_${reservation.reservationId}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _bigTitle(reservation.machineName, '${seed}_title')),
+            Transform.rotate(
+              angle: 0.05,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: isActive ? greenColor : amberColor,
-                  borderRadius: BorderRadius.circular(AppRadii.pill),
-                  border: Border.all(color: borderColor, width: 2),
+                  border: Border.all(color: borderColor, width: 2.5),
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  boxShadow: const [
+                    BoxShadow(color: borderColor, offset: Offset(2, 2), blurRadius: 0),
+                  ],
                 ),
                 child: Text(
                   isActive ? '사용 가능' : '대기 중',
@@ -421,38 +520,33 @@ class _MyReservationCard extends StatelessWidget {
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          AppInfoRow(
-            label: '예약 시간',
-            value: formatTimeRange(
-              reservation.reservedStartAt,
-              reservation.reservedEndAt,
             ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _funRow(
+          '예약 시간',
+          formatTimeRange(reservation.reservedStartAt, reservation.reservedEndAt),
+          '${seed}_time',
+        ),
+        if (!isActive)
+          _funRow('예상 대기', formatRemainingMinutes(estimatedWaitMinutes), '${seed}_wait'),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: isLoading ? null : onCancel,
+            style: FilledButton.styleFrom(backgroundColor: redColor),
+            child: const Text('예약 취소'),
           ),
-          if (!isActive)
-            AppInfoRow(
-              label: '예상 대기',
-              value: formatRemainingMinutes(estimatedWaitMinutes),
-            ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: isLoading ? null : onCancel,
-              style: FilledButton.styleFrom(backgroundColor: redColor),
-              child: const Text('예약 취소'),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _WeeklyStatsCard extends StatelessWidget {
-  const _WeeklyStatsCard({
+class _WeeklyContent extends StatelessWidget {
+  const _WeeklyContent({
     required this.weeklyMinutes,
     required this.sessionCount,
   });
@@ -462,50 +556,66 @@ class _WeeklyStatsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppRecordCard(
-      child: Row(
-        children: [
-          Expanded(
-            child: _StatItem(
-              label: '총 운동 시간',
-              value: formatRemainingMinutes(weeklyMinutes),
-            ),
-          ),
-          Container(width: 2, height: 40, color: borderColor),
-          Expanded(
-            child: _StatItem(label: '이용 횟수', value: '$sessionCount회'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatItem extends StatelessWidget {
-  const _StatItem({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
+    return Row(
       children: [
-        Text(value,
-            style: const TextStyle(
-              color: blueColor,
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-            )),
-        const SizedBox(height: 4),
-        Text(label, style: AppTextStyles.label),
+        Expanded(
+          child: Column(
+            children: [
+              Transform.rotate(
+                angle: -0.05,
+                child: Text(
+                  formatRemainingMinutes(weeklyMinutes),
+                  style: const TextStyle(
+                    color: blueColor,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    shadows: [
+                      Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Transform.rotate(
+                angle: 0.03,
+                child: const Text('총 운동 시간', style: AppTextStyles.label),
+              ),
+            ],
+          ),
+        ),
+        Container(width: 3, height: 44, color: borderColor),
+        Expanded(
+          child: Column(
+            children: [
+              Transform.rotate(
+                angle: 0.06,
+                child: Text(
+                  '$sessionCount회',
+                  style: const TextStyle(
+                    color: redColor,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    shadows: [
+                      Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Transform.rotate(
+                angle: -0.04,
+                child: const Text('이용 횟수', style: AppTextStyles.label),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
 }
 
-class _TopMachineCard extends StatelessWidget {
-  const _TopMachineCard({
+class _TopMachineContent extends StatelessWidget {
+  const _TopMachineContent({
     required this.rank,
     required this.name,
     required this.minutes,
@@ -520,40 +630,71 @@ class _TopMachineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rankColor = rank <= 3 ? _rankColors[rank - 1] : amberColor;
-    return AppRecordCard(
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
+    final seed = 'top_$rank';
+    return Row(
+      children: [
+        Transform.rotate(
+          angle: (math.Random(seed.hashCode).nextDouble() - 0.5) * 0.2,
+          child: Text(
+            '$rank',
+            style: TextStyle(
               color: rankColor,
-              shape: BoxShape.circle,
-              border: Border.all(color: borderColor, width: 2),
+              fontSize: 36,
+              fontWeight: FontWeight.w900,
+              height: 1.0,
+              shadows: const [
+                Shadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
+              ],
             ),
-            child: Center(
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: _funRow(name, formatRemainingMinutes(minutes), '${seed}_row'),
+        ),
+      ],
+    );
+  }
+}
+
+class _LogContent extends StatelessWidget {
+  const _LogContent({required this.log});
+
+  final dynamic log;
+
+  @override
+  Widget build(BuildContext context) {
+    final seed = 'log_${log.logId}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(child: _bigTitle(log.machineName, '${seed}_title')),
+            Transform.rotate(
+              angle: 0.06,
               child: Text(
-                '$rank',
+                '${log.usedMinutes}분',
                 style: const TextStyle(
-                  color: borderColor,
+                  color: blueColor,
+                  fontSize: 22,
                   fontWeight: FontWeight.w900,
-                  fontSize: 14,
+                  shadows: [
+                    Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                  ],
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Text(name, style: AppTextStyles.itemTitle)),
-          Text(
-            formatRemainingMinutes(minutes),
-            style: const TextStyle(
-              color: textColor,
-              fontWeight: FontWeight.w900,
-              fontSize: 15,
-            ),
-          ),
-        ],
-      ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Transform.rotate(
+          alignment: Alignment.centerLeft,
+          angle: -0.03,
+          child: Text(formatDateTime(log.endedAt), style: AppTextStyles.label),
+        ),
+      ],
     );
   }
 }
