@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel, PostgresChangeEvent;
 
+import '../config/secrets.dart';
 import '../data/machine_seed_data.dart';
 import '../models/machine_model.dart';
 import '../models/reservation_model.dart';
@@ -142,7 +143,7 @@ class GymProvider extends ChangeNotifier {
     currentUser = UserModel(
       userId: userId,
       name: name,
-      role: userId == 'admin' ? 'admin' : 'user',
+      role: adminUserIds.contains(userId) ? 'admin' : 'user',
     );
     notifyListeners();
   }

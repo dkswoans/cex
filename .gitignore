@@ -1,3 +1,6 @@
+# Secrets (do not commit)
+lib/config/secrets.dart
+
 # Miscellaneous
 .env
 *.class
