@@ -354,7 +354,7 @@ Widget _bigTitle(String text, String seed) {
   );
 }
 
-Widget _funLabel(String text, String seed) {
+Widget _funLabel(String text, String seed, {double fontSize = 13}) {
   final rng = math.Random(seed.hashCode);
   final angle = (rng.nextDouble() - 0.5) * 0.16;
   const colors = [mutedTextColor, blueColor, amberColor, greenColor];
@@ -366,7 +366,7 @@ Widget _funLabel(String text, String seed) {
       text,
       style: TextStyle(
         color: color,
-        fontSize: 13,
+        fontSize: fontSize,
         fontWeight: FontWeight.w900,
         shadows: const [
           Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
@@ -376,7 +376,7 @@ Widget _funLabel(String text, String seed) {
   );
 }
 
-Widget _funRow(String label, String value, String seed) {
+Widget _funRow(String label, String value, String seed, {double fontSize = 14}) {
   final rng = math.Random(seed.hashCode);
   final rowAngle = (rng.nextDouble() - 0.5) * 0.10;
   final labelAngle = (rng.nextDouble() - 0.5) * 0.14;
@@ -399,7 +399,7 @@ Widget _funRow(String label, String value, String seed) {
               '$label  ',
               style: TextStyle(
                 color: labelColor,
-                fontSize: 14,
+                fontSize: fontSize,
                 fontWeight: FontWeight.w900,
                 shadows: const [
                   Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
@@ -413,7 +413,7 @@ Widget _funRow(String label, String value, String seed) {
               value,
               style: TextStyle(
                 color: valueColor,
-                fontSize: 14,
+                fontSize: fontSize,
                 fontWeight: FontWeight.w900,
                 shadows: const [
                   Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
@@ -677,7 +677,7 @@ class _TopMachineContent extends StatelessWidget {
         ),
         const SizedBox(width: 14),
         Expanded(
-          child: _funRow(name, formatRemainingMinutes(minutes), '${seed}_row'),
+          child: _funRow(name, formatRemainingMinutes(minutes), '${seed}_row', fontSize: 20),
         ),
       ],
     );
@@ -702,7 +702,7 @@ class _LogContent extends StatelessWidget {
             Transform.rotate(
               angle: 0.06,
               child: Text(
-                '${log.usedMinutes}분',
+                formatRemainingMinutes(log.usedMinutes),
                 style: const TextStyle(
                   color: blueColor,
                   fontSize: 22,
@@ -716,7 +716,7 @@ class _LogContent extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 6),
-        _funLabel(formatDateTime(log.endedAt), '${seed}_date'),
+        _funLabel(formatDateTime(log.endedAt), '${seed}_date', fontSize: 15),
       ],
     );
   }
