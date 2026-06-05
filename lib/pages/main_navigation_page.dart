@@ -156,7 +156,8 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     final machineName = alert.reservation.machineName;
     final startTime = formatTimeOnly(alert.reservation.reservedStartAt);
     return switch (alert.type) {
-      ReservationAlertType.ready => '$machineName 예약 시간이 시작됐습니다. ($startTime)',
+      ReservationAlertType.ready =>
+        '$machineName 예약 시간이 시작됐습니다. 2분 안에 사용 시작하세요. ($startTime)',
       ReservationAlertType.upcoming =>
         '$machineName 예약이 ${alert.minutesUntilStart}분 후 시작됩니다. ($startTime)',
     };
