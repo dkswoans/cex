@@ -400,7 +400,7 @@ class _SummaryItem extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.clip,
               style: const TextStyle(
-                color: redColor,
+                color: Color(0xFF003CFF),
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0.5,
