@@ -11,7 +11,6 @@ import '../utils/time_utils.dart';
 import '../widgets/app_design.dart';
 import '../widgets/status_badge.dart';
 
-
 class MachineDetailPage extends StatelessWidget {
   const MachineDetailPage({super.key, required this.machineId});
 
@@ -23,7 +22,8 @@ class MachineDetailPage extends StatelessWidget {
       builder: (context, provider, _) {
         final machine = provider.getMachineById(machineId);
         final currentUser = provider.currentUser;
-        final reservations = provider.getReservationsByMachine(machineId)
+        final reservations = provider
+            .getReservationsByMachine(machineId)
             .where((r) => r.status == ReservationStatus.waiting)
             .toList();
         final activeReservations = provider.getCurrentUsersByMachine(machineId);
@@ -56,7 +56,10 @@ class MachineDetailPage extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             children: [
               Transform.rotate(
-                angle: (math.Random(machineId.hashCode ^ 0xABCD).nextDouble() - 0.5) * 0.06,
+                angle:
+                    (math.Random(machineId.hashCode ^ 0xABCD).nextDouble() -
+                        0.5) *
+                    0.06,
                 child: _WobblyCard(
                   seed: '${machineId}_card',
                   shadows: _randomShadows('${machineId}_card'),
@@ -88,8 +91,16 @@ class MachineDetailPage extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _FunInfoRow(label: '최대 사용 시간', value: '$maxUseMinutes분', seed: '${machineId}0'),
-                      _FunInfoRow(label: '현재 사용자', value: activeUserText, seed: '${machineId}1'),
+                      _FunInfoRow(
+                        label: '최대 사용 시간',
+                        value: '$maxUseMinutes분',
+                        seed: '${machineId}0',
+                      ),
+                      _FunInfoRow(
+                        label: '현재 사용자',
+                        value: activeUserText,
+                        seed: '${machineId}1',
+                      ),
                       if (!isMultiUnitMachine && !hasVariants) ...[
                         _FunInfoRow(
                           label: '시작 시간',
@@ -122,20 +133,38 @@ class MachineDetailPage extends StatelessWidget {
               AppSectionTitle(isMultiUnitMachine ? '현재 사용 현황' : '현재 사용자'),
               if (activeReservations.isEmpty)
                 Transform.rotate(
-                  angle: (math.Random('${machineId}_empty_active'.hashCode ^ 0xABCD).nextDouble() - 0.5) * 0.06,
+                  angle:
+                      (math.Random(
+                            '${machineId}_empty_active'.hashCode ^ 0xABCD,
+                          ).nextDouble() -
+                          0.5) *
+                      0.06,
                   child: _WobblyCard(
                     seed: '${machineId}_empty_active',
                     shadows: _randomShadows('${machineId}_empty_active'),
-                    child: const Center(child: Text('현재 사용 중인 사람이 없습니다.', style: AppTextStyles.empty)),
+                    child: const Center(
+                      child: Text(
+                        '현재 사용 중인 사람이 없습니다.',
+                        style: AppTextStyles.empty,
+                      ),
+                    ),
                   ),
                 )
               else
                 for (final entry in activeReservations.asMap().entries)
                   Transform.rotate(
-                    angle: (math.Random('${machineId}_active_${entry.key}'.hashCode ^ 0xABCD).nextDouble() - 0.5) * 0.06,
+                    angle:
+                        (math.Random(
+                              '${machineId}_active_${entry.key}'.hashCode ^
+                                  0xABCD,
+                            ).nextDouble() -
+                            0.5) *
+                        0.06,
                     child: _WobblyCard(
                       seed: '${machineId}_active_${entry.key}',
-                      shadows: _randomShadows('${machineId}_active_${entry.key}'),
+                      shadows: _randomShadows(
+                        '${machineId}_active_${entry.key}',
+                      ),
                       child: Row(
                         children: [
                           CircleAvatar(
@@ -143,7 +172,9 @@ class MachineDetailPage extends StatelessWidget {
                             foregroundColor: textColor,
                             child: Text(
                               '${entry.key + 1}',
-                              style: const TextStyle(fontWeight: FontWeight.w900),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -182,17 +213,30 @@ class MachineDetailPage extends StatelessWidget {
               const AppSectionTitle('대기자 목록'),
               if (reservations.isEmpty)
                 Transform.rotate(
-                  angle: (math.Random('${machineId}_empty_wait'.hashCode ^ 0xABCD).nextDouble() - 0.5) * 0.06,
+                  angle:
+                      (math.Random(
+                            '${machineId}_empty_wait'.hashCode ^ 0xABCD,
+                          ).nextDouble() -
+                          0.5) *
+                      0.06,
                   child: _WobblyCard(
                     seed: '${machineId}_empty_wait',
                     shadows: _randomShadows('${machineId}_empty_wait'),
-                    child: const Center(child: Text('대기자가 없습니다.', style: AppTextStyles.empty)),
+                    child: const Center(
+                      child: Text('대기자가 없습니다.', style: AppTextStyles.empty),
+                    ),
                   ),
                 )
               else
                 for (final entry in reservations.asMap().entries)
                   Transform.rotate(
-                    angle: (math.Random('${machineId}_wait_${entry.key}'.hashCode ^ 0xABCD).nextDouble() - 0.5) * 0.06,
+                    angle:
+                        (math.Random(
+                              '${machineId}_wait_${entry.key}'.hashCode ^
+                                  0xABCD,
+                            ).nextDouble() -
+                            0.5) *
+                        0.06,
                     child: _WobblyCard(
                       seed: '${machineId}_wait_${entry.key}',
                       shadows: _randomShadows('${machineId}_wait_${entry.key}'),
@@ -204,7 +248,9 @@ class MachineDetailPage extends StatelessWidget {
                             foregroundColor: textColor,
                             child: Text(
                               '${entry.key + 1}',
-                              style: const TextStyle(fontWeight: FontWeight.w900),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -236,7 +282,8 @@ class MachineDetailPage extends StatelessWidget {
                           ),
                           if (entry.value.userId == currentUser?.userId)
                             TextButton(
-                              onPressed: provider.isActionLoading || provider.isLoading
+                              onPressed:
+                                  provider.isActionLoading || provider.isLoading
                                   ? null
                                   : () => _cancelWithConfirm(
                                       context,
@@ -268,7 +315,9 @@ class MachineDetailPage extends StatelessWidget {
                         ? null
                         : await _askVariant(
                             context,
-                            title: machineId == 'dumbbell' ? '덤벨 무게 선택' : '바벨 무게 선택',
+                            title: machineId == 'dumbbell'
+                                ? '덤벨 무게 선택'
+                                : '바벨 무게 선택',
                             variants: variants,
                           );
                     if (variants.isNotEmpty && variant == null) return;
@@ -295,7 +344,9 @@ class MachineDetailPage extends StatelessWidget {
                         ? null
                         : await _askVariant(
                             context,
-                            title: machineId == 'dumbbell' ? '덤벨 무게 선택' : '바벨 무게 선택',
+                            title: machineId == 'dumbbell'
+                                ? '덤벨 무게 선택'
+                                : '바벨 무게 선택',
                             variants: variants,
                           );
                     if (variants.isNotEmpty && variant == null) return;
@@ -506,10 +557,7 @@ class _WobblyCardPainter extends CustomPainter {
     final path = _buildWobblyPath(seed, size, jitterScale: jitterScale);
 
     for (final shadow in shadows) {
-      canvas.drawPath(
-        path.shift(shadow.offset),
-        Paint()..color = shadow.color,
-      );
+      canvas.drawPath(path.shift(shadow.offset), Paint()..color = shadow.color);
     }
 
     canvas.drawPath(path, Paint()..color = fillColor);
@@ -525,7 +573,9 @@ class _WobblyCardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _WobblyCardPainter old) =>
-      old.seed != seed || old.fillColor != fillColor || old.jitterScale != jitterScale;
+      old.seed != seed ||
+      old.fillColor != fillColor ||
+      old.jitterScale != jitterScale;
 }
 
 class _WobblyCardClipper extends CustomClipper<Path> {
@@ -535,7 +585,8 @@ class _WobblyCardClipper extends CustomClipper<Path> {
   final double jitterScale;
 
   @override
-  Path getClip(Size size) => _buildWobblyPath(seed, size, jitterScale: jitterScale);
+  Path getClip(Size size) =>
+      _buildWobblyPath(seed, size, jitterScale: jitterScale);
 
   @override
   bool shouldReclip(covariant _WobblyCardClipper old) =>
@@ -662,7 +713,11 @@ class _FunInfoRow extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                   height: 1.0,
                   shadows: const [
-                    Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                    Shadow(
+                      color: Colors.black,
+                      offset: Offset(2, 2),
+                      blurRadius: 0,
+                    ),
                   ],
                 ),
               ),
@@ -678,7 +733,11 @@ class _FunInfoRow extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                   height: 1.0,
                   shadows: const [
-                    Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                    Shadow(
+                      color: Colors.black,
+                      offset: Offset(2, 2),
+                      blurRadius: 0,
+                    ),
                   ],
                 ),
               ),
@@ -727,9 +786,13 @@ class _ReservationDialogState extends State<_ReservationDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final quickPicks = [5, 10, 15, 20, 30]
-        .where((m) => m <= widget.maxMinutes)
-        .toList();
+    final quickPicks = [
+      5,
+      10,
+      15,
+      20,
+      30,
+    ].where((m) => m <= widget.maxMinutes).toList();
 
     return AlertDialog(
       title: const Text('예약 시간 설정'),
@@ -833,6 +896,93 @@ class _ReservationDialogState extends State<_ReservationDialog> {
       helpText: '예약 시작 시간',
       cancelText: '취소',
       confirmText: '선택',
+      builder: (context, child) {
+        final theme = Theme.of(context);
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: Theme(
+            data: theme.copyWith(
+              colorScheme: const ColorScheme.light(
+                primary: redColor,
+                onPrimary: bgColor,
+                surface: surfaceColor,
+                onSurface: textColor,
+              ),
+              timePickerTheme: TimePickerThemeData(
+                backgroundColor: surfaceColor,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  side: const BorderSide(color: borderColor, width: 4),
+                  borderRadius: BorderRadius.circular(AppRadii.lg),
+                ),
+                padding: const EdgeInsets.all(20),
+                helpTextStyle: const TextStyle(
+                  color: greenColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black,
+                      offset: Offset(1, 1),
+                      blurRadius: 0,
+                    ),
+                  ],
+                ),
+                hourMinuteColor: bgColor,
+                hourMinuteTextColor: textColor,
+                hourMinuteTextStyle: const TextStyle(
+                  fontSize: 46,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+                hourMinuteShape: RoundedRectangleBorder(
+                  side: const BorderSide(color: borderColor, width: 3),
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                ),
+                timeSelectorSeparatorColor: WidgetStateProperty.all(
+                  borderColor,
+                ),
+                timeSelectorSeparatorTextStyle: WidgetStateProperty.all(
+                  const TextStyle(
+                    color: borderColor,
+                    fontSize: 40,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                dialBackgroundColor: bgColor,
+                dialHandColor: redColor,
+                dialTextColor: textColor,
+                dialTextStyle: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                ),
+                entryModeIconColor: textColor,
+                cancelButtonStyle: TextButton.styleFrom(
+                  foregroundColor: textColor,
+                  textStyle: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                  ),
+                ),
+                confirmButtonStyle: TextButton.styleFrom(
+                  foregroundColor: bgColor,
+                  backgroundColor: redColor,
+                  side: const BorderSide(color: borderColor, width: 3),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                  ),
+                  textStyle: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+            child: child!,
+          ),
+        );
+      },
     );
     if (picked == null) return;
     setState(() {
@@ -990,12 +1140,22 @@ class _ActionButtons extends StatelessWidget {
       spacing: 16,
       runSpacing: 12,
       children: [
-        if (showStart) _Button(label: '사용 시작', onPressed: isLoading ? null : onStart),
-        if (canReserve) _Button(label: '예약하기', onPressed: isLoading ? null : onReserve),
+        if (showStart)
+          _Button(label: '사용 시작', onPressed: isLoading ? null : onStart),
+        if (canReserve)
+          _Button(label: '예약하기', onPressed: isLoading ? null : onReserve),
         if (canCancel)
-          _Button(label: '예약 취소', onPressed: isLoading ? null : onCancel, isDanger: true),
+          _Button(
+            label: '예약 취소',
+            onPressed: isLoading ? null : onCancel,
+            isDanger: true,
+          ),
         if (canFinish)
-          _Button(label: '사용 종료', onPressed: isLoading ? null : onFinish, isDanger: true),
+          _Button(
+            label: '사용 종료',
+            onPressed: isLoading ? null : onFinish,
+            isDanger: true,
+          ),
       ],
     );
   }
@@ -1051,7 +1211,9 @@ class _VariantPickerDialogState extends State<_VariantPickerDialog> {
             color: textColor,
             fontSize: 22,
             fontWeight: FontWeight.w900,
-            shadows: [Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0)],
+            shadows: [
+              Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+            ],
           ),
         ),
       ),
@@ -1066,8 +1228,18 @@ class _VariantPickerDialogState extends State<_VariantPickerDialog> {
               final rng = math.Random(v.hashCode);
               final angle = (rng.nextDouble() - 0.5) * 0.18;
               final shadows = isSelected
-                  ? [const BoxShadow(color: redColor, offset: Offset(3, 3), blurRadius: 0),
-                     const BoxShadow(color: blueColor, offset: Offset(-2, -2), blurRadius: 0)]
+                  ? [
+                      const BoxShadow(
+                        color: redColor,
+                        offset: Offset(3, 3),
+                        blurRadius: 0,
+                      ),
+                      const BoxShadow(
+                        color: blueColor,
+                        offset: Offset(-2, -2),
+                        blurRadius: 0,
+                      ),
+                    ]
                   : _chipShadows(v);
               final fillColor = isSelected ? blueColor : surfaceColor;
 
