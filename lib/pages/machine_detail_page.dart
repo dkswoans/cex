@@ -790,7 +790,6 @@ class _ReservationDialogState extends State<_ReservationDialog> {
       5,
       10,
       15,
-      20,
       30,
     ].where((m) => m <= widget.maxMinutes).toList();
 
@@ -893,94 +892,97 @@ class _ReservationDialogState extends State<_ReservationDialog> {
     final picked = await showTimePicker(
       context: context,
       initialTime: _startTime,
+      initialEntryMode: TimePickerEntryMode.dialOnly,
       helpText: '예약 시작 시간',
       cancelText: '취소',
       confirmText: '선택',
       builder: (context, child) {
         final theme = Theme.of(context);
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-          child: Theme(
-            data: theme.copyWith(
-              colorScheme: const ColorScheme.light(
-                primary: redColor,
-                onPrimary: bgColor,
-                surface: surfaceColor,
-                onSurface: textColor,
+        return Theme(
+          data: theme.copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: redColor,
+              onPrimary: bgColor,
+              surface: bgColor,
+              onSurface: borderColor,
+            ),
+            timePickerTheme: TimePickerThemeData(
+              backgroundColor: bgColor,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                side: const BorderSide(color: borderColor, width: 4),
+                borderRadius: BorderRadius.circular(AppRadii.lg),
               ),
-              timePickerTheme: TimePickerThemeData(
-                backgroundColor: surfaceColor,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  side: const BorderSide(color: borderColor, width: 4),
-                  borderRadius: BorderRadius.circular(AppRadii.lg),
-                ),
-                padding: const EdgeInsets.all(20),
-                helpTextStyle: const TextStyle(
-                  color: greenColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0,
-                  shadows: [
-                    Shadow(
-                      color: Colors.black,
-                      offset: Offset(1, 1),
-                      blurRadius: 0,
-                    ),
-                  ],
-                ),
-                hourMinuteColor: bgColor,
-                hourMinuteTextColor: textColor,
-                hourMinuteTextStyle: const TextStyle(
-                  fontSize: 46,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0,
-                ),
-                hourMinuteShape: RoundedRectangleBorder(
-                  side: const BorderSide(color: borderColor, width: 3),
-                  borderRadius: BorderRadius.circular(AppRadii.md),
-                ),
-                timeSelectorSeparatorColor: WidgetStateProperty.all(
-                  borderColor,
-                ),
-                timeSelectorSeparatorTextStyle: WidgetStateProperty.all(
-                  const TextStyle(
-                    color: borderColor,
-                    fontSize: 40,
-                    fontWeight: FontWeight.w900,
+              padding: const EdgeInsets.all(18),
+              helpTextStyle: const TextStyle(
+                color: textColor,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+              hourMinuteColor: surfaceColor,
+              hourMinuteTextColor: bgColor,
+              hourMinuteTextStyle: const TextStyle(
+                fontSize: 44,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+                shadows: [
+                  Shadow(
+                    color: Colors.black,
+                    offset: Offset(2, 2),
+                    blurRadius: 0,
                   ),
-                ),
-                dialBackgroundColor: bgColor,
-                dialHandColor: redColor,
-                dialTextColor: textColor,
-                dialTextStyle: const TextStyle(
+                ],
+              ),
+              hourMinuteShape: RoundedRectangleBorder(
+                side: const BorderSide(color: borderColor, width: 3),
+                borderRadius: BorderRadius.circular(AppRadii.md),
+              ),
+              dialBackgroundColor: const Color(0xFFFFD7F4),
+              dialHandColor: redColor,
+              dialTextColor: borderColor,
+              dialTextStyle: const TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
+                letterSpacing: 0,
+              ),
+              dayPeriodBorderSide: const BorderSide(
+                color: borderColor,
+                width: 2.5,
+              ),
+              dayPeriodColor: surfaceColor,
+              dayPeriodTextColor: borderColor,
+              dayPeriodTextStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+              dayPeriodShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+              ),
+              entryModeIconColor: textColor,
+              cancelButtonStyle: TextButton.styleFrom(
+                foregroundColor: textColor,
+                textStyle: const TextStyle(
                   fontWeight: FontWeight.w900,
                   fontSize: 13,
                 ),
-                entryModeIconColor: textColor,
-                cancelButtonStyle: TextButton.styleFrom(
-                  foregroundColor: textColor,
-                  textStyle: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 13,
-                  ),
+              ),
+              confirmButtonStyle: TextButton.styleFrom(
+                foregroundColor: bgColor,
+                backgroundColor: redColor,
+                side: const BorderSide(color: borderColor, width: 3),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
                 ),
-                confirmButtonStyle: TextButton.styleFrom(
-                  foregroundColor: bgColor,
-                  backgroundColor: redColor,
-                  side: const BorderSide(color: borderColor, width: 3),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadii.sm),
-                  ),
-                  textStyle: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 13,
-                  ),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
                 ),
               ),
             ),
-            child: child!,
           ),
+          child: child!,
         );
       },
     );
