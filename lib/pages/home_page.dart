@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/machine_model.dart';
 import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
+import '../utils/time_utils.dart';
 import '../widgets/app_design.dart';
 import '../widgets/gym_map.dart';
 import 'machine_detail_page.dart';
@@ -38,6 +39,8 @@ class HomePage extends StatelessWidget {
           );
         }
 
+        final reservationAlert = provider.getMyReservationAlert();
+
         return Scaffold(
           backgroundColor: bgColor,
           body: SafeArea(
@@ -67,6 +70,22 @@ class HomePage extends StatelessWidget {
                       reserved: _count(provider, MachineStatus.reserved),
                       repair: _count(provider, MachineStatus.repair),
                     ),
+                    if (reservationAlert != null) ...[
+                      const SizedBox(height: 9),
+                      _ReservationAlertPanel(
+                        alert: reservationAlert,
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => MachineDetailPage(
+                                machineId:
+                                    reservationAlert.reservation.machineId,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 9),
                     Expanded(
                       child: GymMap(
@@ -98,6 +117,91 @@ class HomePage extends StatelessWidget {
     return provider.machines
         .where((machine) => machine.status == status)
         .length;
+  }
+}
+
+class _ReservationAlertPanel extends StatelessWidget {
+  const _ReservationAlertPanel({required this.alert, required this.onTap});
+
+  final ReservationAlert alert;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isReady = alert.type == ReservationAlertType.ready;
+    final title = isReady ? '예약 입장 가능' : '${alert.minutesUntilStart}분 후 예약';
+    final icon = isReady ? Icons.notifications_active : Icons.schedule;
+    final accentColor = isReady ? greenColor : amberColor;
+
+    return Transform.rotate(
+      angle: -0.01,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Color.lerp(accentColor, bgColor, 0.2),
+            border: Border.all(color: borderColor, width: 3),
+            borderRadius: BorderRadius.circular(AppRadii.md),
+            boxShadow: const [
+              BoxShadow(color: redColor, offset: Offset(4, 4), blurRadius: 0),
+              BoxShadow(
+                color: blueColor,
+                offset: Offset(-2, -2),
+                blurRadius: 0,
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  border: Border.all(color: borderColor, width: 3),
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+                child: Icon(icon, color: textColor, size: 25),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: textColor,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        height: 1.05,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${alert.reservation.machineName}  ${formatTimeRange(alert.reservation.reservedStartAt, alert.reservation.reservedEndAt)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: redColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: textColor),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
