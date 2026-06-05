@@ -252,7 +252,7 @@ class _Header extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'APDO GYM!!!',
+                    'BSSM GYM !!!',
                     maxLines: 1,
                     overflow: TextOverflow.clip,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(

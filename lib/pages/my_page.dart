@@ -439,10 +439,8 @@ class _ProfileContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _bigTitle(user.name, 'profile_name_${user.userId}'),
-        const SizedBox(height: 10),
-        _funRow('학번', user.userId, 'profile_id_${user.userId}'),
-        const SizedBox(height: 4),
+        _ProfileIdentityPanel(user: user),
+        const SizedBox(height: 12),
         Transform.rotate(
           angle: -0.04,
           alignment: Alignment.centerLeft,
@@ -464,6 +462,93 @@ class _ProfileContent extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileIdentityPanel extends StatelessWidget {
+  const _ProfileIdentityPanel({required this.user});
+
+  final UserModel user;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ProfileValueRow(
+          label: '이름',
+          value: user.name,
+          fontSize: 38,
+          valueColor: redColor,
+        ),
+        const SizedBox(height: 12),
+        _ProfileValueRow(
+          label: '학번',
+          value: user.userId,
+          fontSize: 26,
+          valueColor: textColor,
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileValueRow extends StatelessWidget {
+  const _ProfileValueRow({
+    required this.label,
+    required this.value,
+    required this.fontSize,
+    required this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final double fontSize;
+  final Color valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: greenColor,
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            height: 1.0,
+            shadows: [
+              Shadow(
+                color: Colors.black,
+                offset: Offset(1, 1),
+                blurRadius: 0,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: valueColor,
+            fontSize: fontSize,
+            fontWeight: FontWeight.w900,
+            height: 1.0,
+            letterSpacing: 0,
+            shadows: const [
+              Shadow(
+                color: Colors.black,
+                offset: Offset(2, 2),
+                blurRadius: 0,
+              ),
+            ],
           ),
         ),
       ],
