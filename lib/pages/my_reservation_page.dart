@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -19,24 +17,6 @@ class MyReservationPage extends StatefulWidget {
 }
 
 class _MyReservationPageState extends State<MyReservationPage> {
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (mounted) {
-        context.read<GymProvider>().syncFromDatabase();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
   Future<void> _confirmCancel(
     BuildContext context,
     GymProvider provider,
@@ -63,7 +43,9 @@ class _MyReservationPageState extends State<MyReservationPage> {
     if (confirm != true || !context.mounted) return;
     final message = await provider.cancelReservation(reservationId);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -113,10 +95,7 @@ class _MyReservationPageState extends State<MyReservationPage> {
                   onCancel: (id) => _confirmCancel(context, provider, id),
                   provider: provider,
                 ),
-                _HistoryTab(
-                  logs: logs,
-                  onRefresh: provider.syncFromDatabase,
-                ),
+                _HistoryTab(logs: logs, onRefresh: provider.syncFromDatabase),
               ],
             ),
           ),
@@ -164,7 +143,9 @@ class _ReservationTab extends StatelessWidget {
               reservation.machineId,
               reservation.userId,
             ),
-            onCancel: isLoading ? null : () => onCancel(reservation.reservationId),
+            onCancel: isLoading
+                ? null
+                : () => onCancel(reservation.reservationId),
           );
         },
       ),
@@ -202,7 +183,10 @@ class _HistoryTab extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(log.machineName, style: AppTextStyles.itemTitle),
+                      child: Text(
+                        log.machineName,
+                        style: AppTextStyles.itemTitle,
+                      ),
                     ),
                     Text(
                       '${log.usedMinutes}분',

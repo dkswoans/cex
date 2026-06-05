@@ -50,6 +50,7 @@ class GymProvider extends ChangeNotifier {
   bool _isApplyingReservationWindows = false;
   RealtimeChannel? _realtimeChannel;
   Timer? _realtimeDebounce;
+  String? _lastReservationAlertSnapshot;
 
   Future<String> _runAction(Future<String> Function() action) async {
     isActionLoading = true;
@@ -70,10 +71,14 @@ class GymProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  Future<void> syncFromDatabase() async {
-    isLoading = true;
+  Future<void> syncFromDatabase({bool showLoading = true}) async {
+    if (showLoading) {
+      isLoading = true;
+    }
     errorMessage = null;
-    notifyListeners();
+    if (showLoading) {
+      notifyListeners();
+    }
 
     try {
       final machineRows = await SupabaseConfig.client
@@ -117,7 +122,9 @@ class GymProvider extends ChangeNotifier {
       debugPrint('[GymProvider] syncFromDatabase error: $error');
       errorMessage = '데이터를 불러오지 못했습니다.';
     } finally {
-      isLoading = false;
+      if (showLoading) {
+        isLoading = false;
+      }
       notifyListeners();
     }
   }
@@ -1024,7 +1031,10 @@ class GymProvider extends ChangeNotifier {
     _reservationTimer?.cancel();
     _reservationTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
       final changed = await _applyReservationWindows();
-      if (changed || getMyReservationAlert() != null) {
+      final alertSnapshot = _reservationAlertSnapshot(getMyReservationAlert());
+      final alertChanged = alertSnapshot != _lastReservationAlertSnapshot;
+      _lastReservationAlertSnapshot = alertSnapshot;
+      if (changed || alertChanged) {
         notifyListeners();
       }
     });
@@ -1053,8 +1063,13 @@ class GymProvider extends ChangeNotifier {
     _realtimeDebounce?.cancel();
     _realtimeDebounce = Timer(
       const Duration(milliseconds: 800),
-      syncFromDatabase,
+      () => syncFromDatabase(showLoading: false),
     );
+  }
+
+  String? _reservationAlertSnapshot(ReservationAlert? alert) {
+    if (alert == null) return null;
+    return '${alert.key}:${alert.minutesUntilStart}';
   }
 
   Future<bool> _applyReservationWindows() async {

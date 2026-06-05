@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -22,22 +21,6 @@ class MyPage extends StatefulWidget {
 }
 
 class _MyPageState extends State<MyPage> {
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (mounted) context.read<GymProvider>().syncFromDatabase();
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Consumer<GymProvider>(
@@ -92,15 +75,26 @@ class _MyPageState extends State<MyPage> {
                   _tiltedCard(
                     seed: 'using_${currentMachine.machineId}',
                     shadows: const [
-                      BoxShadow(color: redColor, offset: Offset(6, 6), blurRadius: 0),
-                      BoxShadow(color: blueColor, offset: Offset(-3, -3), blurRadius: 0),
+                      BoxShadow(
+                        color: redColor,
+                        offset: Offset(6, 6),
+                        blurRadius: 0,
+                      ),
+                      BoxShadow(
+                        color: blueColor,
+                        offset: Offset(-3, -3),
+                        blurRadius: 0,
+                      ),
                     ],
                     child: _CurrentUsageContent(
                       machine: currentMachine,
                       provider: provider,
                       isLoading: isLoading,
-                      onFinish: () =>
-                          _confirmFinish(context, provider, currentMachine.machineId),
+                      onFinish: () => _confirmFinish(
+                        context,
+                        provider,
+                        currentMachine.machineId,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -109,7 +103,9 @@ class _MyPageState extends State<MyPage> {
                 if (myReservations.isEmpty)
                   _tiltedCard(
                     seed: 'no_res',
-                    child: Center(child: _funLabel('예약한 기구가 없습니다.', 'no_res_text')),
+                    child: Center(
+                      child: _funLabel('예약한 기구가 없습니다.', 'no_res_text'),
+                    ),
                   )
                 else
                   ...myReservations.asMap().entries.map(
@@ -158,7 +154,9 @@ class _MyPageState extends State<MyPage> {
                 if (recentLogs.isEmpty)
                   _tiltedCard(
                     seed: 'no_logs',
-                    child: Center(child: _funLabel('이용 기록이 없습니다.', 'no_logs_text')),
+                    child: Center(
+                      child: _funLabel('이용 기록이 없습니다.', 'no_logs_text'),
+                    ),
                   )
                 else
                   ...recentLogs.asMap().entries.map(
@@ -171,7 +169,11 @@ class _MyPageState extends State<MyPage> {
                 _tiltedCard(
                   seed: 'logout_btn',
                   shadows: const [
-                    BoxShadow(color: redColor, offset: Offset(4, 4), blurRadius: 0),
+                    BoxShadow(
+                      color: redColor,
+                      offset: Offset(4, 4),
+                      blurRadius: 0,
+                    ),
                   ],
                   child: GestureDetector(
                     onTap: () => _confirmLogout(context, provider),
@@ -183,7 +185,11 @@ class _MyPageState extends State<MyPage> {
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
                           shadows: [
-                            Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                            Shadow(
+                              color: Colors.black,
+                              offset: Offset(2, 2),
+                              blurRadius: 0,
+                            ),
                           ],
                         ),
                       ),
@@ -268,7 +274,9 @@ class _MyPageState extends State<MyPage> {
     if (confirm != true || !context.mounted) return;
     final message = await provider.finishUsingMachine(machineId);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _confirmCancel(
@@ -297,10 +305,15 @@ class _MyPageState extends State<MyPage> {
     if (confirm != true || !context.mounted) return;
     final message = await provider.cancelReservation(reservationId);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _confirmLogout(BuildContext context, GymProvider provider) async {
+  Future<void> _confirmLogout(
+    BuildContext context,
+    GymProvider provider,
+  ) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -376,7 +389,12 @@ Widget _funLabel(String text, String seed, {double fontSize = 13}) {
   );
 }
 
-Widget _funRow(String label, String value, String seed, {double fontSize = 14}) {
+Widget _funRow(
+  String label,
+  String value,
+  String seed, {
+  double fontSize = 14,
+}) {
   final rng = math.Random(seed.hashCode);
   final rowAngle = (rng.nextDouble() - 0.5) * 0.10;
   final labelAngle = (rng.nextDouble() - 0.5) * 0.14;
@@ -402,7 +420,11 @@ Widget _funRow(String label, String value, String seed, {double fontSize = 14}) 
                 fontSize: fontSize,
                 fontWeight: FontWeight.w900,
                 shadows: const [
-                  Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
+                  Shadow(
+                    color: Colors.black,
+                    offset: Offset(1, 1),
+                    blurRadius: 0,
+                  ),
                 ],
               ),
             ),
@@ -416,7 +438,11 @@ Widget _funRow(String label, String value, String seed, {double fontSize = 14}) 
                 fontSize: fontSize,
                 fontWeight: FontWeight.w900,
                 shadows: const [
-                  Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
+                  Shadow(
+                    color: Colors.black,
+                    offset: Offset(1, 1),
+                    blurRadius: 0,
+                  ),
                 ],
               ),
             ),
@@ -451,7 +477,11 @@ class _ProfileContent extends StatelessWidget {
               border: Border.all(color: borderColor, width: 2.5),
               borderRadius: BorderRadius.circular(AppRadii.sm),
               boxShadow: const [
-                BoxShadow(color: borderColor, offset: Offset(2, 2), blurRadius: 0),
+                BoxShadow(
+                  color: borderColor,
+                  offset: Offset(2, 2),
+                  blurRadius: 0,
+                ),
               ],
             ),
             child: Text(
@@ -523,11 +553,7 @@ class _ProfileValueRow extends StatelessWidget {
             fontWeight: FontWeight.w900,
             height: 1.0,
             shadows: [
-              Shadow(
-                color: Colors.black,
-                offset: Offset(1, 1),
-                blurRadius: 0,
-              ),
+              Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
             ],
           ),
         ),
@@ -543,11 +569,7 @@ class _ProfileValueRow extends StatelessWidget {
             height: 1.0,
             letterSpacing: 0,
             shadows: const [
-              Shadow(
-                color: Colors.black,
-                offset: Offset(2, 2),
-                blurRadius: 0,
-              ),
+              Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
             ],
           ),
         ),
@@ -577,8 +599,16 @@ class _CurrentUsageContent extends StatelessWidget {
       children: [
         _bigTitle(machine.name, 'using_title_${machine.machineId}'),
         const SizedBox(height: 12),
-        _funRow('남은 시간', formatRemainingMinutes(remaining), 'using_rem_${machine.machineId}'),
-        _funRow('종료 예정', formatTimeOnly(machine.endAt), 'using_end_${machine.machineId}'),
+        _funRow(
+          '남은 시간',
+          formatRemainingMinutes(remaining),
+          'using_rem_${machine.machineId}',
+        ),
+        _funRow(
+          '종료 예정',
+          formatTimeOnly(machine.endAt),
+          'using_end_${machine.machineId}',
+        ),
         const SizedBox(height: 8),
         SizedBox(
           width: double.infinity,
@@ -616,17 +646,26 @@ class _ReservationContent extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: _bigTitle(reservation.machineName, '${seed}_title')),
+            Expanded(
+              child: _bigTitle(reservation.machineName, '${seed}_title'),
+            ),
             Transform.rotate(
               angle: 0.05,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: isActive ? greenColor : amberColor,
                   border: Border.all(color: borderColor, width: 2.5),
                   borderRadius: BorderRadius.circular(AppRadii.sm),
                   boxShadow: const [
-                    BoxShadow(color: borderColor, offset: Offset(2, 2), blurRadius: 0),
+                    BoxShadow(
+                      color: borderColor,
+                      offset: Offset(2, 2),
+                      blurRadius: 0,
+                    ),
                   ],
                 ),
                 child: Text(
@@ -644,11 +683,18 @@ class _ReservationContent extends StatelessWidget {
         const SizedBox(height: 10),
         _funRow(
           '예약 시간',
-          formatTimeRange(reservation.reservedStartAt, reservation.reservedEndAt),
+          formatTimeRange(
+            reservation.reservedStartAt,
+            reservation.reservedEndAt,
+          ),
           '${seed}_time',
         ),
         if (!isActive)
-          _funRow('예상 대기', formatRemainingMinutes(estimatedWaitMinutes), '${seed}_wait'),
+          _funRow(
+            '예상 대기',
+            formatRemainingMinutes(estimatedWaitMinutes),
+            '${seed}_wait',
+          ),
         const SizedBox(height: 8),
         SizedBox(
           width: double.infinity,
@@ -688,7 +734,11 @@ class _WeeklyContent extends StatelessWidget {
                     fontSize: 24,
                     fontWeight: FontWeight.w900,
                     shadows: [
-                      Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                      Shadow(
+                        color: Colors.black,
+                        offset: Offset(2, 2),
+                        blurRadius: 0,
+                      ),
                     ],
                   ),
                 ),
@@ -711,7 +761,11 @@ class _WeeklyContent extends StatelessWidget {
                     fontSize: 24,
                     fontWeight: FontWeight.w900,
                     shadows: [
-                      Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                      Shadow(
+                        color: Colors.black,
+                        offset: Offset(2, 2),
+                        blurRadius: 0,
+                      ),
                     ],
                   ),
                 ),
@@ -755,14 +809,23 @@ class _TopMachineContent extends StatelessWidget {
               fontWeight: FontWeight.w900,
               height: 1.0,
               shadows: const [
-                Shadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
+                Shadow(
+                  color: Colors.black,
+                  offset: Offset(3, 3),
+                  blurRadius: 0,
+                ),
               ],
             ),
           ),
         ),
         const SizedBox(width: 14),
         Expanded(
-          child: _funRow(name, formatRemainingMinutes(minutes), '${seed}_row', fontSize: 20),
+          child: _funRow(
+            name,
+            formatRemainingMinutes(minutes),
+            '${seed}_row',
+            fontSize: 20,
+          ),
         ),
       ],
     );
@@ -793,7 +856,11 @@ class _LogContent extends StatelessWidget {
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
                   shadows: [
-                    Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                    Shadow(
+                      color: Colors.black,
+                      offset: Offset(2, 2),
+                      blurRadius: 0,
+                    ),
                   ],
                 ),
               ),
