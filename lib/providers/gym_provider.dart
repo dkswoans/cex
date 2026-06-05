@@ -31,7 +31,6 @@ class ReservationAlert {
 class GymProvider extends ChangeNotifier {
   static const bool _bypassBusinessHoursForTesting = false;
   static const String _multiUserSeparator = '|';
-  static const Duration _reservationClaimWindow = Duration(minutes: 2);
   static const Duration reservationAlertLeadTime = Duration(minutes: 5);
 
   GymProvider() {
@@ -227,8 +226,7 @@ class GymProvider extends ChangeNotifier {
                       reservation.status == ReservationStatus.active) &&
                   reservation.reservedStartAt != null &&
                   reservation.reservedEndAt != null &&
-                  currentTime.isBefore(reservation.reservedEndAt!) &&
-                  !_isNoShowReservation(reservation, currentTime),
+                  currentTime.isBefore(reservation.reservedEndAt!),
             )
             .toList()
           ..sort(_compareReservationsByStartTime);
@@ -568,7 +566,7 @@ class GymProvider extends ChangeNotifier {
       order: order,
       reservedStartAt: startAt,
       reservedEndAt: endAt,
-      claimExpiresAt: startAt.add(_reservationClaimWindow),
+      claimExpiresAt: startAt.add(const Duration(minutes: 1)),
     );
 
     try {
@@ -999,29 +997,6 @@ class GymProvider extends ChangeNotifier {
     return first.isAfter(second) ? first : second;
   }
 
-  DateTime _claimExpiresAt(ReservationModel reservation) {
-    final startAt = reservation.reservedStartAt ?? reservation.createdAt;
-    return reservation.claimExpiresAt ?? startAt.add(_reservationClaimWindow);
-  }
-
-  bool _reservationHasStartedUsing(ReservationModel reservation) {
-    final machineIndex = machines.indexWhere(
-      (machine) => machine.machineId == reservation.machineId,
-    );
-    if (machineIndex == -1) return false;
-
-    return _splitMultiValue(
-      machines[machineIndex].currentUserId,
-    ).any((value) => _baseUserId(value) == reservation.userId);
-  }
-
-  bool _isNoShowReservation(ReservationModel reservation, DateTime now) {
-    final startAt = reservation.reservedStartAt;
-    if (startAt == null || now.isBefore(startAt)) return false;
-    return now.isAfter(_claimExpiresAt(reservation)) &&
-        !_reservationHasStartedUsing(reservation);
-  }
-
   int _ceilPositiveMinutes(Duration duration) {
     if (duration.inSeconds <= 0) return 0;
     return (duration.inSeconds / Duration.secondsPerMinute).ceil();
@@ -1102,7 +1077,7 @@ class GymProvider extends ChangeNotifier {
         final endAt = reservation.reservedEndAt;
         if (startAt == null || endAt == null) continue;
 
-        if (now.isAfter(endAt) || _isNoShowReservation(reservation, now)) {
+        if (now.isAfter(endAt)) {
           await SupabaseConfig.client
               .from('reservations')
               .update({'status': ReservationStatus.cancelled.name})

@@ -132,9 +132,8 @@ class _ReservationAlertPanel extends StatelessWidget {
     final title = isReady ? '예약 입장 가능' : '${alert.minutesUntilStart}분 후 예약';
     final icon = isReady ? Icons.notifications_active : Icons.schedule;
     final accentColor = isReady ? greenColor : amberColor;
-    final subtitle = isReady
-        ? '${alert.reservation.machineName}  입장 마감 ${formatTimeOnly(alert.reservation.claimExpiresAt)}'
-        : '${alert.reservation.machineName}  ${formatTimeRange(alert.reservation.reservedStartAt, alert.reservation.reservedEndAt)}';
+    final subtitle =
+        '${alert.reservation.machineName}  ${formatTimeRange(alert.reservation.reservedStartAt, alert.reservation.reservedEndAt)}';
 
     return Transform.rotate(
       angle: -0.01,

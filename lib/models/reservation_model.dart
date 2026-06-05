@@ -118,7 +118,7 @@ class ReservationModel {
       'reserved_start_at': startAt.toIso8601String(),
       'reserved_end_at': endAt.toIso8601String(),
       'claim_expires_at':
-          (claimExpiresAt ?? startAt.add(const Duration(minutes: 2)))
+          (claimExpiresAt ?? startAt.add(const Duration(minutes: 1)))
               .toIso8601String(),
     };
   }
