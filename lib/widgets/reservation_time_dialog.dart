@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../utils/status_utils.dart';
 import 'app_design.dart';
 
+typedef EarliestReservationStartResolver = DateTime? Function(int minutes);
+
 class ReservationTimeRequest {
   const ReservationTimeRequest({required this.startAt, required this.minutes});
 
@@ -18,6 +20,7 @@ class ReservationTimeDialog extends StatefulWidget {
     this.confirmLabel = '예약하기',
     this.initialStartAt,
     this.initialMinutes,
+    this.findEarliestStartAt,
   });
 
   final int maxMinutes;
@@ -25,6 +28,7 @@ class ReservationTimeDialog extends StatefulWidget {
   final String confirmLabel;
   final DateTime? initialStartAt;
   final int? initialMinutes;
+  final EarliestReservationStartResolver? findEarliestStartAt;
 
   @override
   State<ReservationTimeDialog> createState() => _ReservationTimeDialogState();
@@ -92,6 +96,21 @@ class _ReservationTimeDialogState extends State<ReservationTimeDialog> {
                 ),
               ],
             ),
+            if (widget.findEarliestStartAt != null) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _setEarliestStartTime,
+                  icon: const Icon(Icons.flash_on_rounded),
+                  label: const Text('가장 빠른 시간'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: greenColor,
+                    foregroundColor: borderColor,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             Text('사용 시간 (분)', style: AppTextStyles.label),
             const SizedBox(height: 8),
@@ -261,20 +280,45 @@ class _ReservationTimeDialogState extends State<ReservationTimeDialog> {
     });
   }
 
-  void _submit() {
-    final minutes = int.tryParse(_minutesController.text.trim());
-    if (minutes == null || minutes < 1 || minutes > widget.maxMinutes) {
+  void _setEarliestStartTime() {
+    final minutes = _readMinutes();
+    if (minutes == null) return;
+
+    final startAt = widget.findEarliestStartAt?.call(minutes);
+    if (startAt == null) {
       setState(() {
-        _errorText = '이용 시간은 1~${widget.maxMinutes}분으로 입력하세요.';
+        _errorText = '예약 가능한 가장 빠른 시간이 없습니다.';
       });
       return;
     }
+
+    final startKst = _koreaTime(startAt);
+    setState(() {
+      _startTime = TimeOfDay(hour: startKst.hour, minute: startKst.minute);
+      _errorText = null;
+    });
+  }
+
+  void _submit() {
+    final minutes = _readMinutes();
+    if (minutes == null) return;
 
     final startAt = _todayKoreaTimeAsUtc(_startTime.hour, _startTime.minute);
     FocusScope.of(context).unfocus();
     Navigator.of(
       context,
     ).pop(ReservationTimeRequest(startAt: startAt, minutes: minutes));
+  }
+
+  int? _readMinutes() {
+    final minutes = int.tryParse(_minutesController.text.trim());
+    if (minutes == null || minutes < 1 || minutes > widget.maxMinutes) {
+      setState(() {
+        _errorText = '이용 시간은 1~${widget.maxMinutes}분으로 입력하세요.';
+      });
+      return null;
+    }
+    return minutes;
   }
 
   DateTime _todayKoreaTimeAsUtc(int hour, int minute) {

@@ -384,6 +384,12 @@ class MachineDetailPage extends StatelessWidget {
                     final request = await _askReservation(
                       context,
                       maxMinutes: maxReservationMinutes,
+                      findEarliestStartAt: (minutes) =>
+                          provider.getEarliestReservationStartAt(
+                            machineId,
+                            minutes: minutes,
+                            variantLabel: variant,
+                          ),
                     );
                     if (request == null) return;
                     final message = await provider.reserveMachine(
@@ -449,6 +455,7 @@ class MachineDetailPage extends StatelessWidget {
     int? initialMinutes,
     String title = '예약 시간 설정',
     String confirmLabel = '예약하기',
+    DateTime? Function(int minutes)? findEarliestStartAt,
   }) {
     return showDialog<ReservationTimeRequest>(
       context: context,
@@ -458,6 +465,7 @@ class MachineDetailPage extends StatelessWidget {
         initialMinutes: initialMinutes,
         title: title,
         confirmLabel: confirmLabel,
+        findEarliestStartAt: findEarliestStartAt,
       ),
     );
   }

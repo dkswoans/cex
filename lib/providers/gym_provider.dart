@@ -492,6 +492,66 @@ class GymProvider extends ChangeNotifier {
     return occupiedCount < capacity;
   }
 
+  DateTime? getEarliestReservationStartAt(
+    String machineId, {
+    required int minutes,
+    String? variantLabel,
+    String? excludeReservationId,
+  }) {
+    final user = currentUser;
+    if (user == null) return null;
+
+    final machine = getMachineById(machineId);
+    if (machine.status == MachineStatus.repair) return null;
+    if (machineUsesVariants(machineId) &&
+        (variantLabel == null || variantLabel.isEmpty)) {
+      return null;
+    }
+
+    final maxMinutes = getMaxReservationMinutesForMachine(machineId);
+    if (minutes < 1 || minutes > maxMinutes) return null;
+
+    final capacity = getMachineCapacity(machineId);
+    final firstCandidate = _roundUpToNextMinute(
+      DateTime.now().add(const Duration(minutes: 1)),
+    );
+    final searchUntil = firstCandidate.add(const Duration(hours: 24));
+
+    for (
+      var startAt = firstCandidate;
+      !startAt.isAfter(searchUntil);
+      startAt = startAt.add(const Duration(minutes: 1))
+    ) {
+      final endAt = startAt.add(Duration(minutes: minutes));
+      final reservationError = _validateBusinessWindow(
+        startAt: startAt,
+        minutes: minutes,
+        actionName: '예약',
+        requireFuture: true,
+        enforceBusinessHours: false,
+      );
+      if (reservationError != null) continue;
+
+      final hasMyOverlap = getMyReservations().any(
+        (reservation) =>
+            reservation.reservationId != excludeReservationId &&
+            _reservationOverlaps(reservation, startAt: startAt, endAt: endAt),
+      );
+      if (hasMyOverlap) continue;
+
+      final overlappingCount = _overlappingOccupancyCount(
+        machineId,
+        startAt: startAt,
+        endAt: endAt,
+        variantLabel: variantLabel,
+        excludeReservationId: excludeReservationId,
+      );
+      if (overlappingCount < capacity) return startAt;
+    }
+
+    return null;
+  }
+
   int getRemainingUnitCount(String machineId) {
     final remaining = getMachineCapacity(machineId) - getActiveCount(machineId);
     return remaining < 0 ? 0 : remaining;
@@ -1212,6 +1272,22 @@ class GymProvider extends ChangeNotifier {
   int _ceilPositiveMinutes(Duration duration) {
     if (duration.inSeconds <= 0) return 0;
     return (duration.inSeconds / Duration.secondsPerMinute).ceil();
+  }
+
+  DateTime _roundUpToNextMinute(DateTime dateTime) {
+    final rounded = DateTime(
+      dateTime.year,
+      dateTime.month,
+      dateTime.day,
+      dateTime.hour,
+      dateTime.minute,
+    );
+    if (dateTime.second == 0 &&
+        dateTime.millisecond == 0 &&
+        dateTime.microsecond == 0) {
+      return rounded;
+    }
+    return rounded.add(const Duration(minutes: 1));
   }
 
   int _overlappingOccupancyCount(
