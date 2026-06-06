@@ -288,8 +288,31 @@ class GymProvider extends ChangeNotifier {
   MachineModel? getMachineCurrentlyUsedByMe() {
     final user = currentUser;
     if (user == null) return null;
+    final activeReservations =
+        reservations
+            .where(
+              (reservation) =>
+                  reservation.userId == user.userId &&
+                  reservation.status == ReservationStatus.active,
+            )
+            .toList()
+          ..sort(_compareReservationsByStartTime);
+
+    if (activeReservations.isNotEmpty) {
+      final reservation = activeReservations.first;
+      final machine = getMachineById(reservation.machineId);
+      return machine.copyWith(
+        status: MachineStatus.using,
+        startedAt: reservation.reservedStartAt ?? machine.startedAt,
+        endAt: reservation.reservedEndAt ?? machine.endAt,
+      );
+    }
+
     for (final machine in machines) {
-      if (isUserUsingMachine(machine.machineId)) return machine;
+      final isDirectUser = _splitMultiValue(
+        machine.currentUserId,
+      ).any((value) => _baseUserId(value) == user.userId);
+      if (isDirectUser) return machine;
     }
     return null;
   }
@@ -1229,17 +1252,41 @@ class GymProvider extends ChangeNotifier {
       return;
     }
     final hasDirectUsers = _splitMultiValue(machine.currentUserId).isNotEmpty;
-    final hasActiveReservation = reservations.any(
-      (reservation) =>
-          reservation.machineId == machineId &&
-          reservation.status == ReservationStatus.active,
-    );
+    final activeReservations =
+        reservations
+            .where(
+              (reservation) =>
+                  reservation.machineId == machineId &&
+                  reservation.status == ReservationStatus.active,
+            )
+            .toList()
+          ..sort(_compareReservationsByStartTime);
+    final hasActiveReservation = activeReservations.isNotEmpty;
     final newStatus = hasDirectUsers
         ? MachineStatus.using
         : hasActiveReservation
         ? MachineStatus.reserved
         : MachineStatus.available;
-    final updatedMachine = machine.copyWith(status: newStatus);
+    DateTime? activeStartedAt;
+    DateTime? activeEndAt;
+    for (final reservation in activeReservations) {
+      final startAt = reservation.reservedStartAt;
+      if (startAt != null &&
+          (activeStartedAt == null || startAt.isBefore(activeStartedAt))) {
+        activeStartedAt = startAt;
+      }
+      final endAt = reservation.reservedEndAt;
+      if (endAt != null &&
+          (activeEndAt == null || endAt.isAfter(activeEndAt))) {
+        activeEndAt = endAt;
+      }
+    }
+    final updatedMachine = machine.copyWith(
+      status: newStatus,
+      startedAt: hasDirectUsers ? machine.startedAt : activeStartedAt,
+      endAt: hasDirectUsers ? machine.endAt : activeEndAt,
+      clearTimes: !hasDirectUsers && !hasActiveReservation,
+    );
     await _updateMachine(updatedMachine);
     final index = machines.indexWhere((item) => item.machineId == machineId);
     if (index != -1) {
