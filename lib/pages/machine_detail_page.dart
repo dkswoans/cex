@@ -9,6 +9,7 @@ import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
 import '../utils/time_utils.dart';
 import '../widgets/app_design.dart';
+import '../widgets/reservation_time_dialog.dart';
 import '../widgets/status_badge.dart';
 
 class MachineDetailPage extends StatelessWidget {
@@ -292,16 +293,34 @@ class MachineDetailPage extends StatelessWidget {
                             ),
                           ),
                           if (entry.value.userId == currentUser?.userId)
-                            TextButton(
-                              onPressed:
-                                  provider.isActionLoading || provider.isLoading
-                                  ? null
-                                  : () => _cancelWithConfirm(
-                                      context,
-                                      provider,
-                                      entry.value.reservationId,
-                                    ),
-                              child: const Text('예약 취소'),
+                            Wrap(
+                              spacing: 4,
+                              children: [
+                                TextButton(
+                                  onPressed:
+                                      provider.isActionLoading ||
+                                          provider.isLoading
+                                      ? null
+                                      : () => _editReservation(
+                                          context,
+                                          provider,
+                                          entry.value,
+                                        ),
+                                  child: const Text('수정'),
+                                ),
+                                TextButton(
+                                  onPressed:
+                                      provider.isActionLoading ||
+                                          provider.isLoading
+                                      ? null
+                                      : () => _cancelWithConfirm(
+                                          context,
+                                          provider,
+                                          entry.value.reservationId,
+                                        ),
+                                  child: const Text('예약 취소'),
+                                ),
+                              ],
                             ),
                         ],
                       ),
@@ -423,13 +442,23 @@ class MachineDetailPage extends StatelessWidget {
     );
   }
 
-  Future<_ReservationRequest?> _askReservation(
+  Future<ReservationTimeRequest?> _askReservation(
     BuildContext context, {
     required int maxMinutes,
+    DateTime? initialStartAt,
+    int? initialMinutes,
+    String title = '예약 시간 설정',
+    String confirmLabel = '예약하기',
   }) {
-    return showDialog<_ReservationRequest>(
+    return showDialog<ReservationTimeRequest>(
       context: context,
-      builder: (_) => _ReservationDialog(maxMinutes: maxMinutes),
+      builder: (_) => ReservationTimeDialog(
+        maxMinutes: maxMinutes,
+        initialStartAt: initialStartAt,
+        initialMinutes: initialMinutes,
+        title: title,
+        confirmLabel: confirmLabel,
+      ),
     );
   }
 
@@ -437,6 +466,43 @@ class MachineDetailPage extends StatelessWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _editReservation(
+    BuildContext context,
+    GymProvider provider,
+    ReservationModel reservation,
+  ) async {
+    final maxMinutes = provider.getMaxReservationMinutesForMachine(
+      reservation.machineId,
+    );
+    final initialMinutes = _reservationMinutes(reservation, maxMinutes);
+    final request = await _askReservation(
+      context,
+      maxMinutes: maxMinutes,
+      initialStartAt: reservation.reservedStartAt,
+      initialMinutes: initialMinutes,
+      title: '예약 수정',
+      confirmLabel: '수정하기',
+    );
+    if (request == null) return;
+
+    final message = await provider.updateReservation(
+      reservation.reservationId,
+      startAt: request.startAt,
+      minutes: request.minutes,
+    );
+    if (!context.mounted) return;
+    _showMessage(context, message);
+  }
+
+  int _reservationMinutes(ReservationModel reservation, int fallback) {
+    final startAt = reservation.reservedStartAt;
+    final endAt = reservation.reservedEndAt;
+    if (startAt == null || endAt == null) return fallback;
+    final minutes = endAt.difference(startAt).inMinutes;
+    if (minutes < 1) return fallback;
+    return minutes;
   }
 
   Future<void> _cancelWithConfirm(
@@ -1118,298 +1184,6 @@ class _ScheduleLine extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _ReservationRequest {
-  const _ReservationRequest({required this.startAt, required this.minutes});
-
-  final DateTime startAt;
-  final int minutes;
-}
-
-class _ReservationDialog extends StatefulWidget {
-  const _ReservationDialog({required this.maxMinutes});
-
-  final int maxMinutes;
-
-  @override
-  State<_ReservationDialog> createState() => _ReservationDialogState();
-}
-
-class _ReservationDialogState extends State<_ReservationDialog> {
-  late final TextEditingController _minutesController;
-  late TimeOfDay _startTime;
-  String? _errorText;
-
-  @override
-  void initState() {
-    super.initState();
-    _startTime = _initialStartTime();
-    _minutesController = TextEditingController(
-      text: widget.maxMinutes.clamp(1, 30).toString(),
-    );
-  }
-
-  @override
-  void dispose() {
-    _minutesController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final quickPicks = [
-      5,
-      10,
-      15,
-      30,
-    ].where((m) => m <= widget.maxMinutes).toList();
-
-    return AlertDialog(
-      title: const Text('예약 시간 설정'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('시작 시간', style: AppTextStyles.label),
-                      const SizedBox(height: 2),
-                      const Text('시간 제한 없음', style: AppTextStyles.label),
-                    ],
-                  ),
-                ),
-                FilledButton(
-                  onPressed: _pickStartTime,
-                  child: Text(
-                    _formatTime(_startTime),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text('사용 시간 (분)', style: AppTextStyles.label),
-            const SizedBox(height: 8),
-            if (quickPicks.isNotEmpty)
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: quickPicks.map((m) {
-                  final selected = _minutesController.text == '$m';
-                  return GestureDetector(
-                    onTap: () {
-                      _minutesController.text = '$m';
-                      setState(() => _errorText = null);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: selected ? blueColor : bgColor,
-                        border: Border.all(
-                          color: selected ? blueColor : borderColor,
-                          width: 2.5,
-                        ),
-                        borderRadius: BorderRadius.circular(AppRadii.pill),
-                      ),
-                      child: Text(
-                        '$m분',
-                        style: TextStyle(
-                          color: selected ? borderColor : textColor,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _minutesController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: '직접 입력',
-                helperText: '1~${widget.maxMinutes}분',
-                errorText: _errorText,
-              ),
-              onChanged: (_) => setState(() => _errorText = null),
-              onSubmitted: (_) => _submit(),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('취소'),
-        ),
-        FilledButton(onPressed: _submit, child: const Text('예약하기')),
-      ],
-    );
-  }
-
-  Future<void> _pickStartTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _startTime,
-      initialEntryMode: TimePickerEntryMode.dialOnly,
-      helpText: '예약 시작 시간',
-      cancelText: '취소',
-      confirmText: '선택',
-      builder: (context, child) {
-        final theme = Theme.of(context);
-        return Theme(
-          data: theme.copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: redColor,
-              onPrimary: bgColor,
-              surface: bgColor,
-              onSurface: borderColor,
-            ),
-            timePickerTheme: TimePickerThemeData(
-              backgroundColor: bgColor,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                side: const BorderSide(color: borderColor, width: 4),
-                borderRadius: BorderRadius.circular(AppRadii.lg),
-              ),
-              padding: const EdgeInsets.all(18),
-              helpTextStyle: const TextStyle(
-                color: textColor,
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0,
-              ),
-              hourMinuteColor: surfaceColor,
-              hourMinuteTextColor: bgColor,
-              hourMinuteTextStyle: const TextStyle(
-                fontSize: 44,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0,
-                shadows: [
-                  Shadow(
-                    color: Colors.black,
-                    offset: Offset(2, 2),
-                    blurRadius: 0,
-                  ),
-                ],
-              ),
-              hourMinuteShape: RoundedRectangleBorder(
-                side: const BorderSide(color: borderColor, width: 3),
-                borderRadius: BorderRadius.circular(AppRadii.md),
-              ),
-              dialBackgroundColor: const Color(0xFFFFD7F4),
-              dialHandColor: redColor,
-              dialTextColor: borderColor,
-              dialTextStyle: const TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 14,
-                letterSpacing: 0,
-              ),
-              dayPeriodBorderSide: const BorderSide(
-                color: borderColor,
-                width: 2.5,
-              ),
-              dayPeriodColor: surfaceColor,
-              dayPeriodTextColor: borderColor,
-              dayPeriodTextStyle: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0,
-              ),
-              dayPeriodShape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadii.sm),
-              ),
-              entryModeIconColor: textColor,
-              cancelButtonStyle: TextButton.styleFrom(
-                foregroundColor: textColor,
-                textStyle: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                ),
-              ),
-              confirmButtonStyle: TextButton.styleFrom(
-                foregroundColor: bgColor,
-                backgroundColor: redColor,
-                side: const BorderSide(color: borderColor, width: 3),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadii.sm),
-                ),
-                textStyle: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked == null) return;
-    setState(() {
-      _startTime = picked;
-      _errorText = null;
-    });
-  }
-
-  void _submit() {
-    final minutes = int.tryParse(_minutesController.text.trim());
-    if (minutes == null || minutes < 1 || minutes > widget.maxMinutes) {
-      setState(() {
-        _errorText = '이용 시간은 1~${widget.maxMinutes}분으로 입력하세요.';
-      });
-      return;
-    }
-
-    final startAt = _todayKoreaTimeAsUtc(_startTime.hour, _startTime.minute);
-    FocusScope.of(context).unfocus();
-    Navigator.of(
-      context,
-    ).pop(_ReservationRequest(startAt: startAt, minutes: minutes));
-  }
-
-  DateTime _todayKoreaTimeAsUtc(int hour, int minute) {
-    final nowKst = _koreaTime(DateTime.now());
-    var startAt = DateTime.utc(
-      nowKst.year,
-      nowKst.month,
-      nowKst.day,
-      hour - 9,
-      minute,
-    );
-    if (_koreaTime(startAt).isBefore(nowKst)) {
-      startAt = startAt.add(const Duration(days: 1));
-    }
-    return startAt;
-  }
-
-  DateTime _koreaTime(DateTime dateTime) {
-    return dateTime.toUtc().add(const Duration(hours: 9));
-  }
-
-  TimeOfDay _initialStartTime() {
-    final nowKst = _koreaTime(DateTime.now()).add(const Duration(minutes: 1));
-    return TimeOfDay(hour: nowKst.hour, minute: nowKst.minute);
-  }
-
-  String _formatTime(TimeOfDay time) {
-    final hour = time.hour.toString().padLeft(2, '0');
-    final minute = time.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
   }
 }
 

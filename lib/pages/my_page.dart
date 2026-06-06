@@ -10,6 +10,7 @@ import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
 import '../utils/time_utils.dart';
 import '../widgets/app_design.dart';
+import '../widgets/reservation_time_dialog.dart';
 import '../widgets/wobbly_card.dart';
 import 'login_page.dart';
 
@@ -123,6 +124,8 @@ class _MyPageState extends State<MyPage> {
                           e.value.userId,
                         ),
                         isLoading: isLoading,
+                        onEdit: () =>
+                            _editReservation(context, provider, e.value),
                         onCancel: () => _confirmCancel(
                           context,
                           provider,
@@ -313,6 +316,45 @@ class _MyPageState extends State<MyPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _editReservation(
+    BuildContext context,
+    GymProvider provider,
+    ReservationModel reservation,
+  ) async {
+    final maxMinutes = provider.getMaxReservationMinutesForMachine(
+      reservation.machineId,
+    );
+    final request = await showDialog<ReservationTimeRequest>(
+      context: context,
+      builder: (_) => ReservationTimeDialog(
+        maxMinutes: maxMinutes,
+        initialStartAt: reservation.reservedStartAt,
+        initialMinutes: _reservationMinutes(reservation, maxMinutes),
+        title: '예약 수정',
+        confirmLabel: '수정하기',
+      ),
+    );
+    if (request == null) return;
+
+    final message = await provider.updateReservation(
+      reservation.reservationId,
+      startAt: request.startAt,
+      minutes: request.minutes,
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  int _reservationMinutes(ReservationModel reservation, int fallback) {
+    final startAt = reservation.reservedStartAt;
+    final endAt = reservation.reservedEndAt;
+    if (startAt == null || endAt == null) return fallback;
+    final minutes = endAt.difference(startAt).inMinutes;
+    return minutes < 1 ? fallback : minutes;
   }
 
   Future<void> _confirmLogout(
@@ -633,12 +675,14 @@ class _ReservationContent extends StatelessWidget {
     required this.reservation,
     required this.estimatedWaitMinutes,
     required this.isLoading,
+    required this.onEdit,
     required this.onCancel,
   });
 
   final ReservationModel reservation;
   final int estimatedWaitMinutes;
   final bool isLoading;
+  final VoidCallback onEdit;
   final VoidCallback onCancel;
 
   @override
@@ -701,13 +745,24 @@ class _ReservationContent extends StatelessWidget {
             '${seed}_wait',
           ),
         const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            onPressed: isLoading ? null : onCancel,
-            style: FilledButton.styleFrom(backgroundColor: redColor),
-            child: const Text('예약 취소'),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton(
+                onPressed: isLoading ? null : onEdit,
+                style: FilledButton.styleFrom(backgroundColor: blueColor),
+                child: const Text('예약 수정'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton(
+                onPressed: isLoading ? null : onCancel,
+                style: FilledButton.styleFrom(backgroundColor: redColor),
+                child: const Text('예약 취소'),
+              ),
+            ),
+          ],
         ),
       ],
     );

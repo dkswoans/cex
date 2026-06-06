@@ -8,6 +8,7 @@ import '../utils/status_utils.dart';
 import '../utils/time_utils.dart';
 import '../widgets/app_design.dart';
 import '../widgets/reservation_card.dart';
+import '../widgets/reservation_time_dialog.dart';
 
 class MyReservationPage extends StatefulWidget {
   const MyReservationPage({super.key});
@@ -46,6 +47,45 @@ class _MyReservationPageState extends State<MyReservationPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _editReservation(
+    BuildContext context,
+    GymProvider provider,
+    ReservationModel reservation,
+  ) async {
+    final maxMinutes = provider.getMaxReservationMinutesForMachine(
+      reservation.machineId,
+    );
+    final request = await showDialog<ReservationTimeRequest>(
+      context: context,
+      builder: (_) => ReservationTimeDialog(
+        maxMinutes: maxMinutes,
+        initialStartAt: reservation.reservedStartAt,
+        initialMinutes: _reservationMinutes(reservation, maxMinutes),
+        title: '예약 수정',
+        confirmLabel: '수정하기',
+      ),
+    );
+    if (request == null) return;
+
+    final message = await provider.updateReservation(
+      reservation.reservationId,
+      startAt: request.startAt,
+      minutes: request.minutes,
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  int _reservationMinutes(ReservationModel reservation, int fallback) {
+    final startAt = reservation.reservedStartAt;
+    final endAt = reservation.reservedEndAt;
+    if (startAt == null || endAt == null) return fallback;
+    final minutes = endAt.difference(startAt).inMinutes;
+    return minutes < 1 ? fallback : minutes;
   }
 
   @override
@@ -93,6 +133,8 @@ class _MyReservationPageState extends State<MyReservationPage> {
                   isLoading: isLoading,
                   onRefresh: provider.syncFromDatabase,
                   onCancel: (id) => _confirmCancel(context, provider, id),
+                  onEdit: (reservation) =>
+                      _editReservation(context, provider, reservation),
                   provider: provider,
                 ),
                 _HistoryTab(logs: logs, onRefresh: provider.syncFromDatabase),
@@ -111,6 +153,7 @@ class _ReservationTab extends StatelessWidget {
     required this.isLoading,
     required this.onRefresh,
     required this.onCancel,
+    required this.onEdit,
     required this.provider,
   });
 
@@ -118,6 +161,7 @@ class _ReservationTab extends StatelessWidget {
   final bool isLoading;
   final Future<void> Function() onRefresh;
   final void Function(String id) onCancel;
+  final void Function(ReservationModel reservation) onEdit;
   final GymProvider provider;
 
   @override
@@ -146,6 +190,9 @@ class _ReservationTab extends StatelessWidget {
             onCancel: isLoading
                 ? null
                 : () => onCancel(reservation.reservationId),
+            onEdit: isLoading || reservation.status != ReservationStatus.waiting
+                ? null
+                : () => onEdit(reservation),
           );
         },
       ),

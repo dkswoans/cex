@@ -11,11 +11,13 @@ class ReservationCard extends StatelessWidget {
     required this.reservation,
     required this.estimatedWaitMinutes,
     required this.onCancel,
+    this.onEdit,
   });
 
   final ReservationModel reservation;
   final int estimatedWaitMinutes;
   final VoidCallback? onCancel;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -53,13 +55,26 @@ class ReservationCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: onCancel,
-              style: FilledButton.styleFrom(backgroundColor: redColor),
-              child: const Text('예약 취소'),
-            ),
+          Row(
+            children: [
+              if (onEdit != null) ...[
+                Expanded(
+                  child: FilledButton(
+                    onPressed: onEdit,
+                    style: FilledButton.styleFrom(backgroundColor: blueColor),
+                    child: const Text('예약 수정'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: FilledButton(
+                  onPressed: onCancel,
+                  style: FilledButton.styleFrom(backgroundColor: redColor),
+                  child: const Text('예약 취소'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

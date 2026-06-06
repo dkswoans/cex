@@ -483,22 +483,13 @@ class GymProvider extends ChangeNotifier {
   bool hasAvailableUnitNow(String machineId, {String? variantLabel}) {
     final now = DateTime.now();
     final capacity = getMachineCapacity(machineId);
-
-    final reservationCount = _overlappingReservationCount(
+    final occupiedCount = _overlappingOccupancyCount(
       machineId,
       startAt: now,
       endAt: now.add(const Duration(minutes: 1)),
       variantLabel: variantLabel,
     );
-    if (reservationCount >= capacity) return false;
-
-    final machine = getMachineById(machineId);
-    final currentIds = _splitMultiValue(machine.currentUserId);
-    final directCount = variantLabel != null
-        ? currentIds.where((id) => id.endsWith('@$variantLabel')).length
-        : currentIds.length;
-
-    return directCount < capacity;
+    return occupiedCount < capacity;
   }
 
   int getRemainingUnitCount(String machineId) {
@@ -570,13 +561,31 @@ class GymProvider extends ChangeNotifier {
     }
 
     final capacity = getMachineCapacity(machineId);
-    final overlappingCount = _overlappingReservationCount(
+    final overlappingCount = _overlappingOccupancyCount(
       machineId,
       startAt: startAt,
       endAt: endAt,
       variantLabel: variantLabel,
     );
     if (overlappingCount >= capacity) {
+      final blockingReservation = _firstOverlappingReservation(
+        machineId,
+        startAt: startAt,
+        endAt: endAt,
+        variantLabel: variantLabel,
+      );
+      if (blockingReservation != null) {
+        return '이미 예약된 시간과 겹칩니다.';
+      }
+      final directUsageCount = _overlappingDirectUsageCount(
+        machine,
+        startAt: startAt,
+        endAt: endAt,
+        variantLabel: variantLabel,
+      );
+      if (directUsageCount > 0) {
+        return '현재 사용 중인 시간과 겹쳐 예약할 수 없습니다.';
+      }
       return '해당 시간대에 예약 가능한 자리가 없습니다.';
     }
 
@@ -640,6 +649,116 @@ class GymProvider extends ChangeNotifier {
           return '예약 취소에 실패했습니다.';
         }
       });
+
+  Future<String> updateReservation(
+    String reservationId, {
+    required DateTime startAt,
+    required int minutes,
+  }) => _runAction(() async {
+    final user = currentUser;
+    if (user == null) return '로그인이 필요합니다.';
+
+    await _applyReservationWindows();
+    final index = reservations.indexWhere(
+      (reservation) => reservation.reservationId == reservationId,
+    );
+    if (index == -1) return '예약을 찾을 수 없습니다.';
+
+    final reservation = reservations[index];
+    if (reservation.userId != user.userId) {
+      return '본인 예약만 수정할 수 있습니다.';
+    }
+    if (reservation.status != ReservationStatus.waiting) {
+      return '대기 중인 예약만 수정할 수 있습니다.';
+    }
+
+    final machine = getMachineById(reservation.machineId);
+    if (machine.status == MachineStatus.repair) {
+      return '점검 중인 기구 예약은 수정할 수 없습니다.';
+    }
+
+    final maxMinutes = getMaxReservationMinutesForMachine(
+      reservation.machineId,
+    );
+    if (minutes < 1 || minutes > maxMinutes) {
+      return '예약 시간은 1분부터 $maxMinutes분까지 가능합니다.';
+    }
+
+    final reservationError = _validateBusinessWindow(
+      startAt: startAt,
+      minutes: minutes,
+      actionName: '예약',
+      requireFuture: true,
+      enforceBusinessHours: false,
+    );
+    if (reservationError != null) return reservationError;
+
+    final endAt = startAt.add(Duration(minutes: minutes));
+    final hasMyOverlap = getMyReservations().any(
+      (item) =>
+          item.reservationId != reservationId &&
+          _reservationOverlaps(item, startAt: startAt, endAt: endAt),
+    );
+    if (hasMyOverlap) {
+      return '이미 같은 시간대에 예약한 기구가 있습니다.';
+    }
+
+    final variantLabel = _variantLabelFromReservation(reservation);
+    final capacity = getMachineCapacity(reservation.machineId);
+    final overlappingCount = _overlappingOccupancyCount(
+      reservation.machineId,
+      startAt: startAt,
+      endAt: endAt,
+      variantLabel: variantLabel,
+      excludeReservationId: reservationId,
+    );
+    if (overlappingCount >= capacity) {
+      final blockingReservation = _firstOverlappingReservation(
+        reservation.machineId,
+        startAt: startAt,
+        endAt: endAt,
+        variantLabel: variantLabel,
+        excludeReservationId: reservationId,
+      );
+      if (blockingReservation != null) {
+        return '다른 예약과 시간이 겹칩니다.';
+      }
+      final directUsageCount = _overlappingDirectUsageCount(
+        machine,
+        startAt: startAt,
+        endAt: endAt,
+        variantLabel: variantLabel,
+      );
+      if (directUsageCount > 0) {
+        return '현재 사용 중인 시간과 겹쳐 수정할 수 없습니다.';
+      }
+      return '해당 시간대에 예약 가능한 자리가 없습니다.';
+    }
+
+    try {
+      await SupabaseConfig.client
+          .from('reservations')
+          .update({
+            'reserved_start_at': startAt.toIso8601String(),
+            'reserved_end_at': endAt.toIso8601String(),
+            'claim_expires_at': startAt
+                .add(const Duration(minutes: 1))
+                .toIso8601String(),
+          })
+          .eq('id', reservationId);
+
+      reservations[index] = reservation.copyWith(
+        reservedStartAt: startAt,
+        reservedEndAt: endAt,
+        claimExpiresAt: startAt.add(const Duration(minutes: 1)),
+      );
+      await syncFromDatabase();
+      return '예약을 수정했습니다.';
+    } catch (error) {
+      debugPrint('[GymProvider] updateReservation error: $error');
+      return _reservationInsertErrorMessage(error);
+    }
+  });
 
   Future<String> startUsingMachine(
     String machineId, {
@@ -711,6 +830,26 @@ class GymProvider extends ChangeNotifier {
         reservationEndAt == null || requestedEndAt.isBefore(reservationEndAt)
         ? requestedEndAt
         : reservationEndAt;
+    if (activeReservation == null) {
+      final overlappingCount = _overlappingOccupancyCount(
+        machineId,
+        startAt: now,
+        endAt: endAt,
+        variantLabel: variantLabel,
+      );
+      if (overlappingCount >= getMachineCapacity(machineId)) {
+        final blockingReservation = _firstOverlappingReservation(
+          machineId,
+          startAt: now,
+          endAt: endAt,
+          variantLabel: variantLabel,
+        );
+        if (blockingReservation?.reservedStartAt != null) {
+          return '사용 시간이 ${_formatKoreaTime(blockingReservation!.reservedStartAt!)} 예약과 겹칩니다.';
+        }
+        return '선택한 사용 시간이 다른 사용자와 겹칩니다.';
+      }
+    }
 
     try {
       if (activeReservation != null) {
@@ -989,6 +1128,15 @@ class GymProvider extends ChangeNotifier {
     return reservation.machineName.endsWith(' $variantLabel');
   }
 
+  String? _variantLabelFromReservation(ReservationModel reservation) {
+    if (!machineUsesVariants(reservation.machineId)) return null;
+    final machine = getMachineById(reservation.machineId);
+    final prefix = '${machine.name} ';
+    if (!reservation.machineName.startsWith(prefix)) return null;
+    final variantLabel = reservation.machineName.substring(prefix.length);
+    return variantLabel.isEmpty ? null : variantLabel;
+  }
+
   String _machineDisplayName(String machineName, String? variantLabel) {
     if (variantLabel == null || variantLabel.isEmpty) return machineName;
     return '$machineName $variantLabel';
@@ -1032,12 +1180,33 @@ class GymProvider extends ChangeNotifier {
   }
 
   String _reservationInsertErrorMessage(Object error) {
-    if (error is PostgrestException &&
-        error.code == '23514' &&
-        error.message.contains('reservations_time_window_check')) {
-      return '서버 예약 시간 제한이 아직 20분입니다. 관리자에게 문의해 주세요.';
+    if (error is PostgrestException) {
+      return '예약 실패: ${_reservationDatabaseErrorSummary(error)}';
     }
-    return '예약에 실패했습니다.';
+
+    return '예약 실패: 네트워크 또는 서버 오류가 발생했습니다.';
+  }
+
+  String _reservationDatabaseErrorSummary(PostgrestException error) {
+    final message = error.message;
+    final code = error.code;
+
+    if (code == '23514' && message.contains('reservations_time_window_check')) {
+      return '서버 예약 시간 제한 제약에 걸렸습니다. Supabase SQL 제약을 업데이트해야 합니다.';
+    }
+    if (code == '23505') {
+      return '이미 같은 예약 데이터가 저장되어 있습니다.';
+    }
+    if (code == '23503') {
+      return '예약이 DB에 없는 기구나 사용자 값을 참조하고 있습니다.';
+    }
+    if (code == '23502') {
+      return '예약 저장에 필요한 필수 값이 비어 있습니다.';
+    }
+    if (code == '42501' || message.contains('row-level security')) {
+      return '예약을 저장할 권한이 없습니다. Supabase RLS 정책을 확인해야 합니다.';
+    }
+    return '서버에서 예약을 저장하지 못했습니다.';
   }
 
   int _ceilPositiveMinutes(Duration duration) {
@@ -1045,22 +1214,107 @@ class GymProvider extends ChangeNotifier {
     return (duration.inSeconds / Duration.secondsPerMinute).ceil();
   }
 
-  int _overlappingReservationCount(
+  int _overlappingOccupancyCount(
     String machineId, {
     required DateTime startAt,
     required DateTime endAt,
     String? variantLabel,
+    String? excludeReservationId,
   }) {
-    return reservations
+    final overlappingReservations = reservations
         .where(
           (reservation) =>
+              reservation.reservationId != excludeReservationId &&
               reservation.machineId == machineId &&
               (reservation.status == ReservationStatus.waiting ||
                   reservation.status == ReservationStatus.active) &&
               _reservationMatchesVariant(reservation, variantLabel) &&
               _reservationOverlaps(reservation, startAt: startAt, endAt: endAt),
         )
-        .length;
+        .toList();
+
+    final machine = getMachineById(machineId);
+    if (!_directUsageOverlaps(machine, startAt: startAt, endAt: endAt)) {
+      return overlappingReservations.length;
+    }
+
+    final directCount = _overlappingDirectUsageCount(
+      machine,
+      startAt: startAt,
+      endAt: endAt,
+      variantLabel: variantLabel,
+      overlappingReservations: overlappingReservations,
+    );
+
+    return overlappingReservations.length + directCount;
+  }
+
+  ReservationModel? _firstOverlappingReservation(
+    String machineId, {
+    required DateTime startAt,
+    required DateTime endAt,
+    String? variantLabel,
+    String? excludeReservationId,
+  }) {
+    final result =
+        reservations
+            .where(
+              (reservation) =>
+                  reservation.reservationId != excludeReservationId &&
+                  reservation.machineId == machineId &&
+                  (reservation.status == ReservationStatus.waiting ||
+                      reservation.status == ReservationStatus.active) &&
+                  _reservationMatchesVariant(reservation, variantLabel) &&
+                  _reservationOverlaps(
+                    reservation,
+                    startAt: startAt,
+                    endAt: endAt,
+                  ),
+            )
+            .toList()
+          ..sort(_compareReservationsByStartTime);
+    return result.firstOrNull;
+  }
+
+  bool _directUsageOverlaps(
+    MachineModel machine, {
+    required DateTime startAt,
+    required DateTime endAt,
+  }) {
+    if (_splitMultiValue(machine.currentUserId).isEmpty) return false;
+
+    final usageEndAt = machine.endAt;
+    if (usageEndAt == null) return true;
+
+    final usageStartAt = machine.startedAt;
+    if (usageStartAt == null) return startAt.isBefore(usageEndAt);
+
+    return startAt.isBefore(usageEndAt) && endAt.isAfter(usageStartAt);
+  }
+
+  bool _directUsageMatchesVariant(String usageUserId, String? variantLabel) {
+    if (variantLabel == null || variantLabel.isEmpty) return true;
+    return usageUserId.endsWith('@$variantLabel');
+  }
+
+  int _overlappingDirectUsageCount(
+    MachineModel machine, {
+    required DateTime startAt,
+    required DateTime endAt,
+    String? variantLabel,
+    List<ReservationModel> overlappingReservations = const <ReservationModel>[],
+  }) {
+    if (!_directUsageOverlaps(machine, startAt: startAt, endAt: endAt)) {
+      return 0;
+    }
+
+    return _splitMultiValue(machine.currentUserId).where((value) {
+      if (!_directUsageMatchesVariant(value, variantLabel)) return false;
+      final userId = _baseUserId(value);
+      return !overlappingReservations.any(
+        (reservation) => reservation.userId == userId,
+      );
+    }).length;
   }
 
   void _startReservationTimer() {
@@ -1201,6 +1455,13 @@ class GymProvider extends ChangeNotifier {
 
   DateTime _koreaTime(DateTime dateTime) {
     return dateTime.toUtc().add(const Duration(hours: 9));
+  }
+
+  String _formatKoreaTime(DateTime dateTime) {
+    final koreaTime = _koreaTime(dateTime);
+    final hour = koreaTime.hour.toString().padLeft(2, '0');
+    final minute = koreaTime.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   DateTime _businessOpenAt(DateTime koreaTime) {
