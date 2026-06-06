@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'
-    show RealtimeChannel, PostgresChangeEvent;
+    show PostgrestException, RealtimeChannel, PostgresChangeEvent;
 
 import '../config/secrets.dart';
 import '../data/machine_seed_data.dart';
@@ -474,6 +474,9 @@ class GymProvider extends ChangeNotifier {
   }
 
   int getMaxReservationMinutesForMachine(String machineId) {
+    if (machineId == 'treadmill' || machineId == 'cycle') {
+      return 30;
+    }
     return getMachineById(machineId).maxUseMinutes;
   }
 
@@ -608,7 +611,7 @@ class GymProvider extends ChangeNotifier {
       return '예약이 완료되었습니다.';
     } catch (error) {
       debugPrint('[GymProvider] reserveMachine error: $error');
-      return '예약에 실패했습니다.';
+      return _reservationInsertErrorMessage(error);
     }
   });
 
@@ -1026,6 +1029,15 @@ class GymProvider extends ChangeNotifier {
   DateTime _latestDateTime(DateTime? first, DateTime second) {
     if (first == null) return second;
     return first.isAfter(second) ? first : second;
+  }
+
+  String _reservationInsertErrorMessage(Object error) {
+    if (error is PostgrestException &&
+        error.code == '23514' &&
+        error.message.contains('reservations_time_window_check')) {
+      return '서버 예약 시간 제한이 아직 20분입니다. 관리자에게 문의해 주세요.';
+    }
+    return '예약에 실패했습니다.';
   }
 
   int _ceilPositiveMinutes(Duration duration) {

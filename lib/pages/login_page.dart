@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/gym_provider.dart';
@@ -28,9 +29,17 @@ class _LoginPageState extends State<LoginPage> {
     final userId = _userIdController.text.trim();
     final name = _nameController.text.trim();
     if (userId.isEmpty || name.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('학번이랑 이름 쓰라고요')));
+      _showMessage('학번이랑 이름 쓰라고요');
+      return;
+    }
+
+    if (!RegExp(r'^\d+$').hasMatch(userId)) {
+      _showMessage('학번은 숫자만 입력하세요.');
+      return;
+    }
+
+    if (userId.length != 4) {
+      _showMessage('학번은 4자리로 입력하세요.');
       return;
     }
 
@@ -38,6 +47,12 @@ class _LoginPageState extends State<LoginPage> {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const MainNavigationPage()),
     );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -138,9 +153,16 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 26),
                         TextField(
                           controller: _userIdController,
+                          keyboardType: TextInputType.number,
+                          maxLength: 4,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(4),
+                          ],
                           decoration: const InputDecoration(
                             labelText: '학번',
                             prefixIcon: Icon(Icons.badge_outlined),
+                            counterText: '',
                           ),
                           textInputAction: TextInputAction.next,
                         ),

@@ -130,6 +130,17 @@ class MachineDetailPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
+              const AppSectionTitle('예약 시간표'),
+              _ScheduleOverview(
+                machine: machine,
+                provider: provider,
+                activeReservations: activeReservations,
+                waitingReservations: reservations,
+                myReservation: myReservation,
+                capacity: capacity,
+                hasVariants: hasVariants,
+              ),
+              const SizedBox(height: 16),
               AppSectionTitle(isMultiUnitMachine ? '현재 사용 현황' : '현재 사용자'),
               if (activeReservations.isEmpty)
                 Transform.rotate(
@@ -740,6 +751,367 @@ class _FunInfoRow extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScheduleOverview extends StatelessWidget {
+  const _ScheduleOverview({
+    required this.machine,
+    required this.provider,
+    required this.activeReservations,
+    required this.waitingReservations,
+    required this.myReservation,
+    required this.capacity,
+    required this.hasVariants,
+  });
+
+  final MachineModel machine;
+  final GymProvider provider;
+  final List<ReservationModel> activeReservations;
+  final List<ReservationModel> waitingReservations;
+  final ReservationModel? myReservation;
+  final int capacity;
+  final bool hasVariants;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final nextReservation = _nextReservation(now);
+    final availability = _availabilitySummary(now);
+    final items = [
+      _ScheduleItem(
+        label: '현재 사용 중',
+        title: _currentUsageTitle(),
+        detail: _currentUsageDetail(),
+        color: textColor,
+        icon: Icons.fitness_center_rounded,
+      ),
+      _ScheduleItem(
+        label: '다음 예약',
+        title: nextReservation == null
+            ? '다음 예약 없음'
+            : '${formatTimeOnly(nextReservation.reservedStartAt)} 시작',
+        detail: nextReservation == null
+            ? '아직 잡힌 예약이 없습니다.'
+            : _reservationDetail(nextReservation),
+        color: amberColor,
+        icon: Icons.schedule_rounded,
+      ),
+      _ScheduleItem(
+        label: '내 예약',
+        title: _myReservationTitle(),
+        detail: _myReservationDetail(),
+        color: blueColor,
+        icon: Icons.person_rounded,
+      ),
+      _ScheduleItem(
+        label: '예약 가능한 시간',
+        title: availability.title,
+        detail: availability.detail,
+        color: greenColor,
+        icon: Icons.event_available_rounded,
+      ),
+    ];
+
+    return _WobblyCard(
+      seed: '${machine.machineId}_schedule',
+      shadows: _randomShadows('${machine.machineId}_schedule'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final entry in items.asMap().entries)
+            _ScheduleLine(
+              item: entry.value,
+              isFirst: entry.key == 0,
+              isLast: entry.key == items.length - 1,
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _currentUsageTitle() {
+    if (activeReservations.isEmpty) return '비어 있음';
+    if (capacity > 1) return '${activeReservations.length}/$capacity명 사용 중';
+    return activeReservations.first.userName;
+  }
+
+  String _currentUsageDetail() {
+    if (activeReservations.isEmpty) {
+      return '지금 사용 중인 사람이 없습니다.';
+    }
+
+    final details = activeReservations
+        .take(2)
+        .map((reservation) {
+          final range = formatTimeRange(
+            reservation.reservedStartAt,
+            reservation.reservedEndAt,
+          );
+          return '${reservation.userName} $range';
+        })
+        .join(' · ');
+    final extraCount = activeReservations.length - 2;
+    return extraCount > 0 ? '$details 외 $extraCount명' : details;
+  }
+
+  ReservationModel? _nextReservation(DateTime now) {
+    for (final reservation in waitingReservations) {
+      final endAt = reservation.reservedEndAt;
+      if (endAt == null || endAt.isAfter(now)) return reservation;
+    }
+    return null;
+  }
+
+  String _myReservationTitle() {
+    final reservation = myReservation;
+    if (reservation == null) return '내 예약 없음';
+    if (reservation.status == ReservationStatus.active) return '현재 사용 중';
+    return '${formatTimeOnly(reservation.reservedStartAt)} 예약';
+  }
+
+  String _myReservationDetail() {
+    final reservation = myReservation;
+    if (reservation == null) return '이 기구에 잡아둔 예약이 없습니다.';
+    final statusText = reservation.status == ReservationStatus.active
+        ? '사용 시간'
+        : '예약 시간';
+    return '$statusText · ${_reservationTimeDetail(reservation)}';
+  }
+
+  String _reservationDetail(ReservationModel reservation) {
+    return '${reservation.userName} · ${_reservationTimeDetail(reservation)}';
+  }
+
+  String _reservationTimeDetail(ReservationModel reservation) {
+    final range = formatTimeRange(
+      reservation.reservedStartAt,
+      reservation.reservedEndAt,
+    );
+    if (!hasVariants || reservation.machineName == machine.name) {
+      return range;
+    }
+    return '${reservation.machineName} · $range';
+  }
+
+  _AvailabilitySummary _availabilitySummary(DateTime now) {
+    if (machine.status == MachineStatus.repair) {
+      return const _AvailabilitySummary(
+        title: '점검 중',
+        detail: '점검이 끝난 뒤 예약할 수 있습니다.',
+      );
+    }
+
+    if (hasVariants) {
+      return const _AvailabilitySummary(
+        title: '종류 선택 후 확인',
+        detail: '덤벨/바벨은 무게별 예약 시간이 따로 잡힙니다.',
+      );
+    }
+
+    final schedule = _scheduleReservations();
+    final availableNow = provider.hasAvailableUnitNow(machine.machineId);
+    if (availableNow) {
+      final remainingNow = math.max(
+        1,
+        capacity - _overlapCountAt(now, schedule),
+      );
+      final title = capacity > 1 ? '지금 $remainingNow자리 가능' : '지금 가능';
+      final nextBusyStart = _nextBusyStartAfter(now, schedule);
+      final detail = nextBusyStart == null
+          ? '잡힌 예약이 없어 바로 사용할 수 있습니다.'
+          : capacity > 1
+          ? '다음 예약은 ${formatTimeOnly(nextBusyStart)} 예정입니다.'
+          : '다음 예약 ${formatTimeOnly(nextBusyStart)} 전까지 비어 있습니다.';
+      return _AvailabilitySummary(title: title, detail: detail);
+    }
+
+    final nextAvailableStart = _nextAvailableStartAfter(now, schedule);
+    if (nextAvailableStart == null) {
+      return const _AvailabilitySummary(
+        title: '사용 종료 후 가능',
+        detail: '현재 사용 종료 시간이 확정되면 빈 시간이 표시됩니다.',
+      );
+    }
+
+    return _AvailabilitySummary(
+      title: '${formatTimeOnly(nextAvailableStart)}부터 가능',
+      detail: '예약 또는 사용이 끝난 뒤 자리가 생깁니다.',
+    );
+  }
+
+  List<ReservationModel> _scheduleReservations() {
+    final reservationsById = <String, ReservationModel>{};
+    for (final reservation in activeReservations) {
+      reservationsById[reservation.reservationId] = reservation;
+    }
+    for (final reservation in waitingReservations) {
+      reservationsById[reservation.reservationId] = reservation;
+    }
+    final result = reservationsById.values.toList()
+      ..sort((a, b) => _reservationStart(a).compareTo(_reservationStart(b)));
+    return result;
+  }
+
+  DateTime _reservationStart(ReservationModel reservation) {
+    return reservation.reservedStartAt ?? reservation.createdAt;
+  }
+
+  DateTime? _nextBusyStartAfter(DateTime now, List<ReservationModel> schedule) {
+    for (final reservation in schedule) {
+      final startAt = reservation.reservedStartAt;
+      if (startAt != null && startAt.isAfter(now)) return startAt;
+    }
+    return null;
+  }
+
+  DateTime? _nextAvailableStartAfter(
+    DateTime now,
+    List<ReservationModel> schedule,
+  ) {
+    final candidates = <DateTime>[];
+    for (final reservation in schedule) {
+      final endAt = reservation.reservedEndAt;
+      if (endAt != null && endAt.isAfter(now)) {
+        candidates.add(endAt);
+      }
+    }
+    candidates.sort();
+
+    DateTime? lastCandidate;
+    for (final candidate in candidates) {
+      if (lastCandidate != null && candidate.isAtSameMomentAs(lastCandidate)) {
+        continue;
+      }
+      lastCandidate = candidate;
+      if (_overlapCountAt(candidate, schedule) < capacity) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  int _overlapCountAt(DateTime time, List<ReservationModel> schedule) {
+    final probeEnd = time.add(const Duration(minutes: 1));
+    return schedule.where((reservation) {
+      final startAt = reservation.reservedStartAt;
+      final endAt = reservation.reservedEndAt;
+      final hasStarted = startAt == null || startAt.isBefore(probeEnd);
+      if (!hasStarted) return false;
+      if (endAt == null) return reservation.status == ReservationStatus.active;
+      return endAt.isAfter(time);
+    }).length;
+  }
+}
+
+class _ScheduleItem {
+  const _ScheduleItem({
+    required this.label,
+    required this.title,
+    required this.detail,
+    required this.color,
+    required this.icon,
+  });
+
+  final String label;
+  final String title;
+  final String detail;
+  final Color color;
+  final IconData icon;
+}
+
+class _AvailabilitySummary {
+  const _AvailabilitySummary({required this.title, required this.detail});
+
+  final String title;
+  final String detail;
+}
+
+class _ScheduleLine extends StatelessWidget {
+  const _ScheduleLine({
+    required this.item,
+    required this.isFirst,
+    required this.isLast,
+  });
+
+  final _ScheduleItem item;
+  final bool isFirst;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border(
+          left: BorderSide(color: item.color, width: 8),
+          top: BorderSide(color: borderColor, width: isFirst ? 3 : 1.5),
+          right: const BorderSide(color: borderColor, width: 3),
+          bottom: BorderSide(color: borderColor, width: isLast ? 3 : 1.5),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 11, 12, 11),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: item.color,
+                shape: BoxShape.circle,
+                border: Border.all(color: borderColor, width: 2.5),
+              ),
+              child: Icon(item.icon, size: 19, color: borderColor),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.label,
+                    style: const TextStyle(
+                      color: borderColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      height: 1.15,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.title,
+                    style: const TextStyle(
+                      color: textColor,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      height: 1.12,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.detail,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: borderColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      height: 1.28,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
