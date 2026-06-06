@@ -513,6 +513,7 @@ class GymProvider extends ChangeNotifier {
       minutes: minutes,
       actionName: '예약',
       requireFuture: true,
+      enforceBusinessHours: false,
     );
     if (reservationError != null) return reservationError;
 
@@ -1029,7 +1030,7 @@ class GymProvider extends ChangeNotifier {
 
   void _startReservationTimer() {
     _reservationTimer?.cancel();
-    _reservationTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+    _reservationTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
       final changed = await _applyReservationWindows();
       final alertSnapshot = _reservationAlertSnapshot(getMyReservationAlert());
       final alertChanged = alertSnapshot != _lastReservationAlertSnapshot;
@@ -1135,6 +1136,7 @@ class GymProvider extends ChangeNotifier {
     required int minutes,
     required String actionName,
     bool requireFuture = false,
+    bool enforceBusinessHours = true,
   }) {
     if (_bypassBusinessHoursForTesting) return null;
 
@@ -1146,6 +1148,8 @@ class GymProvider extends ChangeNotifier {
     if (requireFuture && startKst.isBefore(_koreaTime(DateTime.now()))) {
       return '$actionName 시간은 현재 이후여야 합니다.';
     }
+
+    if (!enforceBusinessHours) return null;
 
     if (startKst.isBefore(openAt) || endKst.isAfter(closeAt)) {
       return '$actionName은 21:00부터 23:00 안에서만 가능합니다.';

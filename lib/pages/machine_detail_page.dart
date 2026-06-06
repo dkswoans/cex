@@ -767,12 +767,13 @@ class _ReservationDialog extends StatefulWidget {
 
 class _ReservationDialogState extends State<_ReservationDialog> {
   late final TextEditingController _minutesController;
-  TimeOfDay _startTime = const TimeOfDay(hour: 21, minute: 0);
+  late TimeOfDay _startTime;
   String? _errorText;
 
   @override
   void initState() {
     super.initState();
+    _startTime = _initialStartTime();
     _minutesController = TextEditingController(
       text: widget.maxMinutes.clamp(1, 30).toString(),
     );
@@ -808,7 +809,7 @@ class _ReservationDialogState extends State<_ReservationDialog> {
                     children: [
                       Text('시작 시간', style: AppTextStyles.label),
                       const SizedBox(height: 2),
-                      const Text('21:00~23:00 사이', style: AppTextStyles.label),
+                      const Text('시간 제한 없음', style: AppTextStyles.label),
                     ],
                   ),
                 ),
@@ -1026,6 +1027,11 @@ class _ReservationDialogState extends State<_ReservationDialog> {
 
   DateTime _koreaTime(DateTime dateTime) {
     return dateTime.toUtc().add(const Duration(hours: 9));
+  }
+
+  TimeOfDay _initialStartTime() {
+    final nowKst = _koreaTime(DateTime.now()).add(const Duration(minutes: 1));
+    return TimeOfDay(hour: nowKst.hour, minute: nowKst.minute);
   }
 
   String _formatTime(TimeOfDay time) {
