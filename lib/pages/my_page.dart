@@ -41,7 +41,15 @@ class _MyPageState extends State<MyPage> {
         final weeklyMinutes = provider.getWeeklyUsageMinutes();
         final weeklyCount = provider.getWeeklySessionCount();
         final topMachines = provider.getTopMachinesByUsage(3);
-        final recentLogs = provider.getMyUsageLogs().take(5).toList();
+        final myUsageLogs = provider.getMyUsageLogs();
+        final todayLogs = myUsageLogs
+            .where((log) => _isSameKoreaDay(log.endedAt, DateTime.now()))
+            .toList();
+        final todayMinutes = todayLogs.fold<int>(
+          0,
+          (sum, log) => sum + log.usedMinutes,
+        );
+        final recentLogs = myUsageLogs.take(5).toList();
         final isLoading = provider.isActionLoading || provider.isLoading;
 
         return Scaffold(
@@ -134,6 +142,15 @@ class _MyPageState extends State<MyPage> {
                       ),
                     ),
                   ),
+                const SizedBox(height: 8),
+                _sectionLabel('오늘 운동 요약'),
+                _tiltedCard(
+                  seed: 'today_stats',
+                  child: _TodaySummaryContent(
+                    todayMinutes: todayMinutes,
+                    sessionCount: todayLogs.length,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 _sectionLabel('이번 주 운동'),
                 _tiltedCard(
@@ -389,6 +406,18 @@ class _MyPageState extends State<MyPage> {
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+bool _isSameKoreaDay(DateTime dateTime, DateTime base) {
+  final koreaDateTime = _toKoreaTime(dateTime);
+  final koreaBase = _toKoreaTime(base);
+  return koreaDateTime.year == koreaBase.year &&
+      koreaDateTime.month == koreaBase.month &&
+      koreaDateTime.day == koreaBase.day;
+}
+
+DateTime _toKoreaTime(DateTime dateTime) {
+  return dateTime.toUtc().add(const Duration(hours: 9));
+}
 
 Widget _bigTitle(String text, String seed) {
   final rng = math.Random(seed.hashCode);
@@ -765,6 +794,95 @@ class _ReservationContent extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _TodaySummaryContent extends StatelessWidget {
+  const _TodaySummaryContent({
+    required this.todayMinutes,
+    required this.sessionCount,
+  });
+
+  final int todayMinutes;
+  final int sessionCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _TodaySummaryItem(
+            label: '오늘 운동',
+            value: formatRemainingMinutes(todayMinutes),
+            color: blueColor,
+            seed: 'today_minutes',
+          ),
+        ),
+        Container(width: 3, height: 58, color: borderColor),
+        Expanded(
+          child: _TodaySummaryItem(
+            label: '이용 횟수',
+            value: '$sessionCount회',
+            color: greenColor,
+            seed: 'today_count',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TodaySummaryItem extends StatelessWidget {
+  const _TodaySummaryItem({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.seed,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+  final String seed;
+
+  @override
+  Widget build(BuildContext context) {
+    final rng = math.Random(seed.hashCode);
+    final angle = (rng.nextDouble() - 0.5) * 0.08;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        children: [
+          Transform.rotate(
+            angle: angle,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                maxLines: 1,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 23,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                  letterSpacing: 0,
+                  shadows: const [
+                    Shadow(
+                      color: Colors.black,
+                      offset: Offset(2, 2),
+                      blurRadius: 0,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          _funLabel(label, '${seed}_label'),
+        ],
+      ),
     );
   }
 }

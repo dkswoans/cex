@@ -848,6 +848,7 @@ class _ScheduleOverview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
+    final schedule = _scheduleReservations();
     final nextReservation = _nextReservation(now);
     final availability = _availabilitySummary(now);
     final items = [
@@ -862,7 +863,10 @@ class _ScheduleOverview extends StatelessWidget {
         label: '다음 예약',
         title: nextReservation == null
             ? '다음 예약 없음'
-            : '${formatTimeOnly(nextReservation.reservedStartAt)} 시작',
+            : formatTimeRange(
+                nextReservation.reservedStartAt,
+                nextReservation.reservedEndAt,
+              ),
         detail: nextReservation == null
             ? '아직 잡힌 예약이 없습니다.'
             : _reservationDetail(nextReservation),
@@ -891,21 +895,26 @@ class _ScheduleOverview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final entry in items.asMap().entries)
-            _ScheduleLine(
-              item: entry.value,
-              isFirst: entry.key == 0,
-              isLast: entry.key == items.length - 1,
-            ),
+          for (final entry in items.asMap().entries) ...[
+            _ScheduleLine(item: entry.value),
+            if (entry.key != items.length - 1) const SizedBox(height: 8),
+          ],
+          const SizedBox(height: 12),
+          _ScheduleTimeline(
+            reservations: schedule,
+            myReservation: myReservation,
+            hasVariants: hasVariants,
+            machineName: machine.name,
+          ),
         ],
       ),
     );
   }
 
   String _currentUsageTitle() {
-    if (activeReservations.isEmpty) return '비어 있음';
-    if (capacity > 1) return '${activeReservations.length}/$capacity명 사용 중';
-    return activeReservations.first.userName;
+    if (activeReservations.isEmpty) return '지금 비어 있음';
+    if (capacity > 1) return '${activeReservations.length}/$capacity자리 사용 중';
+    return '사용 중';
   }
 
   String _currentUsageDetail() {
@@ -938,8 +947,10 @@ class _ScheduleOverview extends StatelessWidget {
   String _myReservationTitle() {
     final reservation = myReservation;
     if (reservation == null) return '내 예약 없음';
-    if (reservation.status == ReservationStatus.active) return '현재 사용 중';
-    return '${formatTimeOnly(reservation.reservedStartAt)} 예약';
+    return formatTimeRange(
+      reservation.reservedStartAt,
+      reservation.reservedEndAt,
+    );
   }
 
   String _myReservationDetail() {
@@ -1100,88 +1111,270 @@ class _AvailabilitySummary {
 }
 
 class _ScheduleLine extends StatelessWidget {
-  const _ScheduleLine({
-    required this.item,
-    required this.isFirst,
-    required this.isLast,
-  });
+  const _ScheduleLine({required this.item});
 
   final _ScheduleItem item;
-  final bool isFirst;
-  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    return Container(
+      padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
-        color: bgColor,
-        border: Border(
-          left: BorderSide(color: item.color, width: 8),
-          top: BorderSide(color: borderColor, width: isFirst ? 3 : 1.5),
-          right: const BorderSide(color: borderColor, width: 3),
-          bottom: BorderSide(color: borderColor, width: isLast ? 3 : 1.5),
+        color: Color.lerp(item.color, bgColor, 0.78),
+        border: Border.all(color: borderColor, width: 3),
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        boxShadow: const [
+          BoxShadow(color: borderColor, offset: Offset(2, 2), blurRadius: 0),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: item.color,
+              shape: BoxShape.circle,
+              border: Border.all(color: borderColor, width: 2.5),
+            ),
+            child: Icon(item.icon, size: 21, color: borderColor),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _ScheduleLabelChip(label: item.label, color: item.color),
+                const SizedBox(height: 6),
+                Text(
+                  item.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: textColor,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    height: 1.08,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  item.detail,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: borderColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    height: 1.25,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScheduleLabelChip extends StatelessWidget {
+  const _ScheduleLabelChip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        border: Border.all(color: borderColor, width: 2),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: borderColor,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+          height: 1,
+          letterSpacing: 0,
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 11, 12, 11),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: item.color,
-                shape: BoxShape.circle,
-                border: Border.all(color: borderColor, width: 2.5),
+    );
+  }
+}
+
+class _ScheduleTimeline extends StatelessWidget {
+  const _ScheduleTimeline({
+    required this.reservations,
+    required this.myReservation,
+    required this.hasVariants,
+    required this.machineName,
+  });
+
+  final List<ReservationModel> reservations;
+  final ReservationModel? myReservation;
+  final bool hasVariants;
+  final String machineName;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleReservations = reservations.take(4).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border.all(color: borderColor, width: 3),
+        borderRadius: BorderRadius.circular(AppRadii.md),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.timeline_rounded, color: textColor, size: 20),
+              SizedBox(width: 6),
+              Text(
+                '오늘 예약 순서',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                  letterSpacing: 0,
+                ),
               ),
-              child: Icon(item.icon, size: 19, color: borderColor),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.label,
-                    style: const TextStyle(
-                      color: borderColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      height: 1.15,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    item.title,
-                    style: const TextStyle(
-                      color: textColor,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      height: 1.12,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    item.detail,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: borderColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      height: 1.28,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (visibleReservations.isEmpty)
+            const Text(
+              '남은 예약이 없습니다.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.empty,
+            )
+          else
+            for (final entry in visibleReservations.asMap().entries) ...[
+              _ScheduleTimelineRow(
+                reservation: entry.value,
+                isMine:
+                    myReservation?.reservationId == entry.value.reservationId,
+                hasVariants: hasVariants,
+                machineName: machineName,
               ),
+              if (entry.key != visibleReservations.length - 1)
+                const SizedBox(height: 8),
+            ],
+          if (reservations.length > visibleReservations.length) ...[
+            const SizedBox(height: 8),
+            Text(
+              '외 ${reservations.length - visibleReservations.length}건 더 있음',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.label,
             ),
           ],
-        ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScheduleTimelineRow extends StatelessWidget {
+  const _ScheduleTimelineRow({
+    required this.reservation,
+    required this.isMine,
+    required this.hasVariants,
+    required this.machineName,
+  });
+
+  final ReservationModel reservation;
+  final bool isMine;
+  final bool hasVariants;
+  final String machineName;
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = reservation.status == ReservationStatus.active;
+    final color = isMine
+        ? blueColor
+        : isActive
+        ? redColor
+        : amberColor;
+    final statusText = isMine
+        ? '내 예약'
+        : isActive
+        ? '사용 중'
+        : '예약';
+    final detail = hasVariants && reservation.machineName != machineName
+        ? '${reservation.userName} · ${reservation.machineName}'
+        : reservation.userName;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Color.lerp(color, bgColor, 0.82),
+        border: Border.all(color: borderColor, width: 2.5),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 78,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  formatTimeOnly(reservation.reservedStartAt),
+                  style: const TextStyle(
+                    color: textColor,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '~ ${formatTimeOnly(reservation.reservedEndAt)}',
+                  style: const TextStyle(
+                    color: borderColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(width: 4, height: 42, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _ScheduleLabelChip(label: statusText, color: color),
+                const SizedBox(height: 5),
+                Text(
+                  detail,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.value,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

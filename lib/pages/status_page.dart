@@ -5,6 +5,7 @@ import '../models/machine_model.dart';
 import '../models/reservation_model.dart';
 import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
+import '../utils/time_utils.dart';
 import '../widgets/app_design.dart';
 import 'machine_detail_page.dart';
 
@@ -16,8 +17,7 @@ class StatusPage extends StatelessWidget {
     return Consumer<GymProvider>(
       builder: (context, provider, _) {
         final snapshot = _GymStatusSnapshot(provider);
-        final topWaiting = snapshot.topWaitingMachines.take(3).toList();
-        final availableNow = snapshot.availableMachines.take(8).toList();
+        final popularMachines = snapshot.todayPopularMachines;
 
         return Scaffold(
           backgroundColor: bgColor,
@@ -50,40 +50,25 @@ class StatusPage extends StatelessWidget {
                 const SizedBox(height: 14),
                 _MetricGrid(snapshot: snapshot),
                 const SizedBox(height: 18),
-                const AppSectionTitle('러닝/사이클 자리'),
-                _CardioCapacityRow(snapshot: snapshot),
-                const SizedBox(height: 18),
-                const AppSectionTitle('대기 많은 기구'),
-                if (topWaiting.isEmpty)
-                  const AppEmptyPanel(text: '대기 중인 기구가 없습니다.')
+                const AppSectionTitle('오늘 인기 기구 TOP 3'),
+                if (popularMachines.isEmpty)
+                  const AppEmptyPanel(text: '오늘 이용/예약 기록이 아직 없습니다.')
                 else
-                  ...topWaiting.map(
-                    (entry) => _MachineStatusTile(
-                      title: entry.machine.name,
-                      subtitle: '대기 ${entry.waitingCount}명',
-                      trailing: '${entry.activeCount}/${entry.capacity}',
-                      color: amberColor,
-                      onTap: () => _openDetail(context, entry.machine),
+                  ...popularMachines.asMap().entries.map(
+                    (entry) => _PopularMachineTile(
+                      rank: entry.key + 1,
+                      item: entry.value,
+                      onTap: entry.value.machine == null
+                          ? null
+                          : () => _openDetail(context, entry.value.machine!),
                     ),
                   ),
                 const SizedBox(height: 18),
-                const AppSectionTitle('지금 바로 가능'),
-                if (availableNow.isEmpty)
-                  const AppEmptyPanel(text: '지금 바로 사용 가능한 기구가 없습니다.')
-                else
-                  Wrap(
-                    spacing: 9,
-                    runSpacing: 10,
-                    children: availableNow
-                        .map(
-                          (machine) => _AvailableMachineChip(
-                            machine: machine,
-                            remainingText: snapshot.remainingText(machine),
-                            onTap: () => _openDetail(context, machine),
-                          ),
-                        )
-                        .toList(),
-                  ),
+                const AppSectionTitle('시간대별 혼잡도'),
+                _HourlyCongestionPanel(snapshot: snapshot),
+                const SizedBox(height: 18),
+                const AppSectionTitle('러닝/사이클 자리'),
+                _CardioCapacityRow(snapshot: snapshot),
               ],
             ),
           ),
@@ -103,7 +88,8 @@ class StatusPage extends StatelessWidget {
 
 class _GymStatusSnapshot {
   _GymStatusSnapshot(this.provider)
-    : activeUnits = _activeUnits(provider),
+    : now = DateTime.now(),
+      activeUnits = _activeUnits(provider),
       totalUnits = _totalUnits(provider),
       waitingTotal = _waitingTotal(provider),
       repairCount = provider.machines
@@ -111,6 +97,7 @@ class _GymStatusSnapshot {
           .length;
 
   final GymProvider provider;
+  final DateTime now;
   final int activeUnits;
   final int totalUnits;
   final int waitingTotal;
@@ -143,43 +130,12 @@ class _GymStatusSnapshot {
     };
   }
 
-  List<MachineModel> get availableMachines {
-    final result =
-        provider.machines
-            .where(
-              (machine) =>
-                  machine.status != MachineStatus.repair &&
-                  provider.hasAvailableUnitNow(machine.machineId),
-            )
-            .toList()
-          ..sort((a, b) {
-            final zoneCompare = a.zoneName.compareTo(b.zoneName);
-            if (zoneCompare != 0) return zoneCompare;
-            return a.name.compareTo(b.name);
-          });
-    return result;
+  List<_PopularMachine> get todayPopularMachines {
+    return _todayPopularMachines(provider, now);
   }
 
-  List<_WaitingMachine> get topWaitingMachines {
-    final result =
-        provider.machines
-            .map((machine) {
-              final waitingCount = provider.getWaitingCount(machine.machineId);
-              return _WaitingMachine(
-                machine: machine,
-                waitingCount: waitingCount,
-                activeCount: provider.getActiveCount(machine.machineId),
-                capacity: provider.getMachineCapacity(machine.machineId),
-              );
-            })
-            .where((entry) => entry.waitingCount > 0)
-            .toList()
-          ..sort((a, b) {
-            final waitingCompare = b.waitingCount.compareTo(a.waitingCount);
-            if (waitingCompare != 0) return waitingCompare;
-            return b.activeCount.compareTo(a.activeCount);
-          });
-    return result;
+  List<_HourlyCongestion> get hourlyCongestion {
+    return _hourlyCongestion(provider, now, totalUnits);
   }
 
   List<MachineModel> get cardioMachines {
@@ -226,12 +182,6 @@ class _GymStatusSnapshot {
     return remaining < 0 ? 0 : remaining;
   }
 
-  String remainingText(MachineModel machine) {
-    final capacity = provider.getMachineCapacity(machine.machineId);
-    if (capacity <= 1) return '가능';
-    return '${remainingUnits(machine)}/$capacity';
-  }
-
   static int _totalUnits(GymProvider provider) {
     return provider.machines
         .where(
@@ -266,20 +216,248 @@ class _GymStatusSnapshot {
       (sum, machine) => sum + provider.getWaitingCount(machine.machineId),
     );
   }
+
+  static List<_PopularMachine> _todayPopularMachines(
+    GymProvider provider,
+    DateTime now,
+  ) {
+    final activityCounts = <String, int>{};
+    final totalMinutes = <String, int>{};
+    final names = <String, String>{};
+
+    void addActivity(String machineId, String machineName, int minutes) {
+      activityCounts[machineId] = (activityCounts[machineId] ?? 0) + 1;
+      totalMinutes[machineId] = (totalMinutes[machineId] ?? 0) + minutes;
+      names[machineId] = machineName;
+    }
+
+    for (final log in provider.usageLogs) {
+      if (!_isSameKoreaDay(log.endedAt, now)) continue;
+      final machine = _machineForId(provider, log.machineId);
+      addActivity(
+        log.machineId,
+        machine?.name ?? log.machineName,
+        log.usedMinutes,
+      );
+    }
+
+    for (final reservation in provider.reservations) {
+      if (!_isLiveReservation(reservation)) continue;
+      final startAt = reservation.reservedStartAt;
+      final endAt = reservation.reservedEndAt;
+      if (startAt == null || endAt == null) continue;
+      if (!_isSameKoreaDay(startAt, now)) continue;
+      final minutes = endAt.difference(startAt).inMinutes;
+      final machine = _machineForId(provider, reservation.machineId);
+      addActivity(
+        reservation.machineId,
+        machine?.name ?? reservation.machineName,
+        minutes < 1 ? 0 : minutes,
+      );
+    }
+
+    final result =
+        activityCounts.entries.map((entry) {
+          final machine = _machineForId(provider, entry.key);
+          return _PopularMachine(
+            machineName: machine?.name ?? names[entry.key] ?? entry.key,
+            activityCount: entry.value,
+            totalMinutes: totalMinutes[entry.key] ?? 0,
+            machine: machine,
+          );
+        }).toList()..sort((a, b) {
+          final countCompare = b.activityCount.compareTo(a.activityCount);
+          if (countCompare != 0) return countCompare;
+          return b.totalMinutes.compareTo(a.totalMinutes);
+        });
+
+    return result.take(3).toList();
+  }
+
+  static List<_HourlyCongestion> _hourlyCongestion(
+    GymProvider provider,
+    DateTime now,
+    int capacity,
+  ) {
+    final koreaNow = _koreaTime(now);
+    const slots = [(21, 0), (21, 30), (22, 0), (22, 30)];
+
+    return slots.map((slot) {
+      final startAt = _dateTimeFromKoreaClock(
+        koreaNow.year,
+        koreaNow.month,
+        koreaNow.day,
+        slot.$1,
+        slot.$2,
+      );
+      final endAt = startAt.add(const Duration(minutes: 30));
+      final load =
+          _reservationLoadForSlot(provider, startAt, endAt) +
+          _directLoadForSlot(provider, startAt, endAt) +
+          _usageLogLoadForSlot(provider, startAt, endAt, now);
+      final ratio = capacity == 0
+          ? 0.0
+          : (load / capacity).clamp(0.0, 1.0).toDouble();
+      final level = _congestionLevel(ratio);
+      return _HourlyCongestion(
+        timeLabel:
+            '${slot.$1.toString().padLeft(2, '0')}:${slot.$2.toString().padLeft(2, '0')}',
+        load: load,
+        capacity: capacity,
+        ratio: ratio,
+        statusLabel: level.$1,
+        color: level.$2,
+      );
+    }).toList();
+  }
+
+  static int _reservationLoadForSlot(
+    GymProvider provider,
+    DateTime startAt,
+    DateTime endAt,
+  ) {
+    return provider.reservations.where((reservation) {
+      if (!_isDashboardMachine(reservation.machineId)) return false;
+      if (!_isLiveReservation(reservation)) return false;
+      final reservedStartAt = reservation.reservedStartAt;
+      final reservedEndAt = reservation.reservedEndAt;
+      if (reservedStartAt == null || reservedEndAt == null) return false;
+      return _overlaps(reservedStartAt, reservedEndAt, startAt, endAt);
+    }).length;
+  }
+
+  static int _directLoadForSlot(
+    GymProvider provider,
+    DateTime startAt,
+    DateTime endAt,
+  ) {
+    return provider.machines
+        .where((machine) => _isDashboardMachine(machine.machineId))
+        .where((machine) => machine.status != MachineStatus.repair)
+        .where((machine) => _directUsageOverlaps(machine, startAt, endAt))
+        .fold(0, (sum, machine) => sum + _currentUserCount(machine));
+  }
+
+  static int _usageLogLoadForSlot(
+    GymProvider provider,
+    DateTime startAt,
+    DateTime endAt,
+    DateTime now,
+  ) {
+    return provider.usageLogs.where((log) {
+      if (!_isDashboardMachine(log.machineId)) return false;
+      if (!log.endedAt.isBefore(now)) return false;
+      return _overlaps(log.startedAt, log.endedAt, startAt, endAt);
+    }).length;
+  }
+
+  static bool _isLiveReservation(ReservationModel reservation) {
+    return reservation.status == ReservationStatus.waiting ||
+        reservation.status == ReservationStatus.active;
+  }
+
+  static bool _isDashboardMachine(String machineId) {
+    return machineId != 'treadmill';
+  }
+
+  static bool _directUsageOverlaps(
+    MachineModel machine,
+    DateTime startAt,
+    DateTime endAt,
+  ) {
+    if (_currentUserCount(machine) == 0) return false;
+    final machineEndAt = machine.endAt;
+    if (machineEndAt != null && !startAt.isBefore(machineEndAt)) return false;
+    final machineStartAt = machine.startedAt;
+    if (machineStartAt != null && !endAt.isAfter(machineStartAt)) return false;
+    return true;
+  }
+
+  static int _currentUserCount(MachineModel machine) {
+    final currentUserId = machine.currentUserId;
+    if (currentUserId == null || currentUserId.trim().isEmpty) return 0;
+    return currentUserId
+        .split('|')
+        .where((item) => item.trim().isNotEmpty)
+        .length;
+  }
+
+  static bool _overlaps(
+    DateTime firstStartAt,
+    DateTime firstEndAt,
+    DateTime secondStartAt,
+    DateTime secondEndAt,
+  ) {
+    return firstStartAt.isBefore(secondEndAt) &&
+        firstEndAt.isAfter(secondStartAt);
+  }
+
+  static bool _isSameKoreaDay(DateTime dateTime, DateTime base) {
+    final koreaDateTime = _koreaTime(dateTime);
+    final koreaBase = _koreaTime(base);
+    return koreaDateTime.year == koreaBase.year &&
+        koreaDateTime.month == koreaBase.month &&
+        koreaDateTime.day == koreaBase.day;
+  }
+
+  static DateTime _koreaTime(DateTime dateTime) {
+    return dateTime.toUtc().add(const Duration(hours: 9));
+  }
+
+  static DateTime _dateTimeFromKoreaClock(
+    int year,
+    int month,
+    int day,
+    int hour,
+    int minute,
+  ) {
+    return DateTime.utc(year, month, day, hour - 9, minute);
+  }
+
+  static (String, Color) _congestionLevel(double ratio) {
+    if (ratio < 0.35) return ('여유', greenColor);
+    if (ratio < 0.7) return ('보통', amberColor);
+    return ('혼잡', redColor);
+  }
+
+  static MachineModel? _machineForId(GymProvider provider, String machineId) {
+    for (final machine in provider.machines) {
+      if (machine.machineId == machineId) return machine;
+    }
+    return null;
+  }
 }
 
-class _WaitingMachine {
-  const _WaitingMachine({
+class _PopularMachine {
+  const _PopularMachine({
+    required this.machineName,
+    required this.activityCount,
+    required this.totalMinutes,
     required this.machine,
-    required this.waitingCount,
-    required this.activeCount,
-    required this.capacity,
   });
 
-  final MachineModel machine;
-  final int waitingCount;
-  final int activeCount;
+  final String machineName;
+  final int activityCount;
+  final int totalMinutes;
+  final MachineModel? machine;
+}
+
+class _HourlyCongestion {
+  const _HourlyCongestion({
+    required this.timeLabel,
+    required this.load,
+    required this.capacity,
+    required this.ratio,
+    required this.statusLabel,
+    required this.color,
+  });
+
+  final String timeLabel;
+  final int load;
   final int capacity;
+  final double ratio;
+  final String statusLabel;
+  final Color color;
 }
 
 class _UsingMachine {
@@ -373,6 +551,193 @@ class _CongestionPanel extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PopularMachineTile extends StatelessWidget {
+  const _PopularMachineTile({
+    required this.rank,
+    required this.item,
+    required this.onTap,
+  });
+
+  final int rank;
+  final _PopularMachine item;
+  final VoidCallback? onTap;
+
+  static const _rankColors = [redColor, blueColor, greenColor];
+
+  @override
+  Widget build(BuildContext context) {
+    final rankColor = rank <= _rankColors.length
+        ? _rankColors[rank - 1]
+        : amberColor;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Color.lerp(rankColor, bgColor, 0.32),
+            border: Border.all(color: borderColor, width: 3),
+            borderRadius: BorderRadius.circular(AppRadii.md),
+            boxShadow: AppShadows.sticker,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: rankColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: borderColor, width: 3),
+                ),
+                child: Text(
+                  '$rank',
+                  style: const TextStyle(
+                    color: borderColor,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.machineName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.itemTitle,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '오늘 ${item.activityCount}건 · ${formatRemainingMinutes(item.totalMinutes)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.label,
+                    ),
+                  ],
+                ),
+              ),
+              if (onTap != null)
+                const Icon(Icons.chevron_right, color: textColor),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HourlyCongestionPanel extends StatelessWidget {
+  const _HourlyCongestionPanel({required this.snapshot});
+
+  final _GymStatusSnapshot snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = snapshot.hourlyCongestion;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        border: Border.all(color: borderColor, width: 3),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        boxShadow: AppShadows.sticker,
+      ),
+      child: Column(
+        children: items
+            .map(
+              (item) => Padding(
+                padding: EdgeInsets.only(bottom: item == items.last ? 0 : 10),
+                child: _HourlyCongestionRow(item: item),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+}
+
+class _HourlyCongestionRow extends StatelessWidget {
+  const _HourlyCongestionRow({required this.item});
+
+  final _HourlyCongestion item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 52,
+          child: Text(
+            item.timeLabel,
+            style: const TextStyle(
+              color: textColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 22,
+            decoration: BoxDecoration(
+              color: bgColor,
+              border: Border.all(color: borderColor, width: 2),
+              borderRadius: BorderRadius.circular(AppRadii.pill),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: item.ratio,
+                heightFactor: 1,
+                child: ColoredBox(color: item.color),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          width: 58,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          decoration: BoxDecoration(
+            color: item.color,
+            border: Border.all(color: borderColor, width: 2),
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+          ),
+          child: Text(
+            item.statusLabel,
+            style: const TextStyle(
+              color: borderColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 42,
+          child: Text(
+            '${item.load}/${item.capacity}',
+            textAlign: TextAlign.right,
+            style: AppTextStyles.label,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -819,45 +1184,6 @@ class _MachineStatusTile extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AvailableMachineChip extends StatelessWidget {
-  const _AvailableMachineChip({
-    required this.machine,
-    required this.remainingText,
-    required this.onTap,
-  });
-
-  final MachineModel machine;
-  final String remainingText;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadii.pill),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: greenColor,
-          border: Border.all(color: borderColor, width: 2.5),
-          borderRadius: BorderRadius.circular(AppRadii.pill),
-          boxShadow: const [
-            BoxShadow(color: borderColor, offset: Offset(2, 2), blurRadius: 0),
-          ],
-        ),
-        child: Text(
-          '${machine.shortName} $remainingText',
-          style: const TextStyle(
-            color: borderColor,
-            fontSize: 13,
-            fontWeight: FontWeight.w900,
           ),
         ),
       ),
