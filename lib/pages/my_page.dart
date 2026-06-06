@@ -31,7 +31,12 @@ class _MyPageState extends State<MyPage> {
         }
 
         final currentMachine = provider.getMachineCurrentlyUsedByMe();
-        final myReservations = provider.getMyReservations();
+        final myReservations = provider
+            .getMyReservations()
+            .where(
+              (reservation) => reservation.status == ReservationStatus.waiting,
+            )
+            .toList();
         final weeklyMinutes = provider.getWeeklyUsageMinutes();
         final weeklyCount = provider.getWeeklySessionCount();
         final topMachines = provider.getTopMachinesByUsage(3);
