@@ -69,6 +69,8 @@ class HomePage extends StatelessWidget {
                       using: _count(provider, MachineStatus.using),
                       reserved: _count(provider, MachineStatus.reserved),
                       repair: _count(provider, MachineStatus.repair),
+                      onStatusTap: (status) =>
+                          _showMachinesByStatus(context, provider, status),
                     ),
                     if (reservationAlert != null) ...[
                       const SizedBox(height: 9),
@@ -117,6 +119,38 @@ class HomePage extends StatelessWidget {
     return provider.machines
         .where((machine) => machine.status == status)
         .length;
+  }
+
+  void _showMachinesByStatus(
+    BuildContext context,
+    GymProvider provider,
+    MachineStatus status,
+  ) {
+    final machines =
+        provider.machines.where((machine) => machine.status == status).toList()
+          ..sort((a, b) {
+            final zoneCompare = a.zoneName.compareTo(b.zoneName);
+            if (zoneCompare != 0) return zoneCompare;
+            return a.name.compareTo(b.name);
+          });
+    final navigator = Navigator.of(context);
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _StatusMachinesDialog(
+        status: status,
+        machines: machines,
+        provider: provider,
+        onOpenMachine: (machine) {
+          Navigator.of(dialogContext).pop();
+          navigator.push(
+            MaterialPageRoute(
+              builder: (_) => MachineDetailPage(machineId: machine.machineId),
+            ),
+          );
+        },
+      ),
+    );
   }
 }
 
@@ -300,12 +334,14 @@ class _StatusSummary extends StatelessWidget {
     required this.using,
     required this.reserved,
     required this.repair,
+    required this.onStatusTap,
   });
 
   final int available;
   final int using;
   final int reserved;
   final int repair;
+  final void Function(MachineStatus status) onStatusTap;
 
   @override
   Widget build(BuildContext context) {
@@ -318,6 +354,7 @@ class _StatusSummary extends StatelessWidget {
             color: greenColor,
             icon: Icons.thumb_up_alt,
             angle: -0.08,
+            onTap: () => onStatusTap(MachineStatus.available),
           ),
         ),
         Expanded(
@@ -327,6 +364,7 @@ class _StatusSummary extends StatelessWidget {
             color: redColor,
             icon: Icons.warning_amber,
             angle: 0.09,
+            onTap: () => onStatusTap(MachineStatus.using),
           ),
         ),
         Expanded(
@@ -336,6 +374,7 @@ class _StatusSummary extends StatelessWidget {
             color: amberColor,
             icon: Icons.local_fire_department,
             angle: -0.04,
+            onTap: () => onStatusTap(MachineStatus.reserved),
           ),
         ),
         Expanded(
@@ -345,6 +384,7 @@ class _StatusSummary extends StatelessWidget {
             color: const Color(0xFF6D6D6D),
             icon: Icons.dangerous,
             angle: 0.07,
+            onTap: () => onStatusTap(MachineStatus.repair),
           ),
         ),
       ],
@@ -359,6 +399,7 @@ class _SummaryItem extends StatelessWidget {
     required this.color,
     required this.icon,
     required this.angle,
+    required this.onTap,
   });
 
   final String label;
@@ -366,45 +407,286 @@ class _SummaryItem extends StatelessWidget {
   final Color color;
   final IconData icon;
   final double angle;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Transform.rotate(
       angle: angle,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        child: Container(
+          height: 82,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: Color.lerp(color, bgColor, 0.22),
+            border: Border.all(color: borderColor, width: 3),
+            borderRadius: BorderRadius.circular(AppRadii.md),
+            boxShadow: AppShadows.sticker,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(icon, size: 17, color: textColor),
+              Text(
+                '$value',
+                style: const TextStyle(
+                  color: textColor,
+                  fontSize: 23,
+                  fontWeight: FontWeight.w900,
+                  height: 0.9,
+                ),
+              ),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                style: const TextStyle(
+                  color: Color(0xFF003CFF),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusMachinesDialog extends StatelessWidget {
+  const _StatusMachinesDialog({
+    required this.status,
+    required this.machines,
+    required this.provider,
+    required this.onOpenMachine,
+  });
+
+  final MachineStatus status;
+  final List<MachineModel> machines;
+  final GymProvider provider;
+  final void Function(MachineModel machine) onOpenMachine;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = machineStatusColor(status);
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
+      child: Transform.rotate(
+        angle: -0.012,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460, maxHeight: 560),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              border: Border.all(color: borderColor, width: 4),
+              borderRadius: BorderRadius.circular(AppRadii.lg),
+              boxShadow: const [
+                BoxShadow(
+                  color: blueColor,
+                  offset: Offset(5, 5),
+                  blurRadius: 0,
+                ),
+                BoxShadow(
+                  color: redColor,
+                  offset: Offset(-2, -2),
+                  blurRadius: 0,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: color,
+                        border: Border.all(color: borderColor, width: 3),
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
+                      ),
+                      child: Icon(_statusIcon(status), color: borderColor),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        machineStatusText(status),
+                        style: const TextStyle(
+                          color: bgColor,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black,
+                              offset: Offset(2, 2),
+                              blurRadius: 0,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close, color: borderColor),
+                      tooltip: '닫기',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    border: Border.all(color: borderColor, width: 3),
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                  ),
+                  child: Text(
+                    machines.isEmpty
+                        ? '${machineStatusText(status)} 기구가 없습니다.'
+                        : '${machineStatusText(status)} · ${machines.length}개',
+                    style: const TextStyle(
+                      color: borderColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (machines.isEmpty)
+                  AppEmptyPanel(text: '${machineStatusText(status)} 기구가 없습니다.')
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: machines.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 9),
+                      itemBuilder: (context, index) {
+                        final machine = machines[index];
+                        return _StatusMachineDialogTile(
+                          machine: machine,
+                          status: status,
+                          provider: provider,
+                          color: color,
+                          onTap: () => onOpenMachine(machine),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _statusIcon(MachineStatus status) {
+    return switch (status) {
+      MachineStatus.available => Icons.thumb_up_alt,
+      MachineStatus.using => Icons.warning_amber,
+      MachineStatus.reserved => Icons.local_fire_department,
+      MachineStatus.repair => Icons.dangerous,
+    };
+  }
+}
+
+class _StatusMachineDialogTile extends StatelessWidget {
+  const _StatusMachineDialogTile({
+    required this.machine,
+    required this.status,
+    required this.provider,
+    required this.color,
+    required this.onTap,
+  });
+
+  final MachineModel machine;
+  final MachineStatus status;
+  final GymProvider provider;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final capacity = provider.getMachineCapacity(machine.machineId);
+    final activeCount = provider.getActiveCount(machine.machineId);
+    final waitingCount = provider.getWaitingCount(machine.machineId);
+    final subtitle = switch (status) {
+      MachineStatus.available =>
+        capacity > 1
+            ? '남은 자리 ${provider.getRemainingUnitCount(machine.machineId)}개'
+            : machine.zoneName,
+      MachineStatus.using =>
+        capacity > 1
+            ? '사용 $activeCount/$capacity'
+            : machine.currentUserName ?? '사용 중',
+      MachineStatus.reserved =>
+        waitingCount > 0 ? '대기 $waitingCount명' : '예약 대기 중',
+      MachineStatus.repair => machine.zoneName,
+    };
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadii.md),
       child: Container(
-        height: 82,
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        padding: const EdgeInsets.all(7),
+        padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(
-          color: Color.lerp(color, bgColor, 0.22),
+          color: bgColor,
           border: Border.all(color: borderColor, width: 3),
           borderRadius: BorderRadius.circular(AppRadii.md),
-          boxShadow: AppShadows.sticker,
+          boxShadow: const [
+            BoxShadow(color: borderColor, offset: Offset(2, 2), blurRadius: 0),
+          ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        child: Row(
           children: [
-            Icon(icon, size: 17, color: textColor),
-            Text(
-              '$value',
-              style: const TextStyle(
-                color: textColor,
-                fontSize: 23,
-                fontWeight: FontWeight.w900,
-                height: 0.9,
+            Container(
+              width: 12,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color,
+                border: Border.all(color: borderColor, width: 2),
+                borderRadius: BorderRadius.circular(AppRadii.pill),
               ),
             ),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.clip,
-              style: const TextStyle(
-                color: Color(0xFF003CFF),
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.5,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    machine.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.itemTitle,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: borderColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
               ),
             ),
+            const Icon(Icons.chevron_right, color: textColor),
           ],
         ),
       ),

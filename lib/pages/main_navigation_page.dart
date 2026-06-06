@@ -9,6 +9,7 @@ import '../utils/time_utils.dart';
 import 'admin_page.dart';
 import 'home_page.dart';
 import 'my_page.dart';
+import 'status_page.dart';
 
 class MainNavigationPage extends StatefulWidget {
   const MainNavigationPage({super.key});
@@ -23,8 +24,8 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   GymProvider? _provider;
   final Set<String> _shownReservationAlertKeys = {};
 
-  static const _pagesAdmin = [HomePage(), MyPage(), AdminPage()];
-  static const _pagesUser = [HomePage(), MyPage()];
+  static const _pagesAdmin = [HomePage(), StatusPage(), MyPage(), AdminPage()];
+  static const _pagesUser = [HomePage(), StatusPage(), MyPage()];
 
   @override
   void initState() {
@@ -96,6 +97,11 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
               label: '지도봄',
             ),
             const NavigationDestination(
+              icon: Icon(Icons.analytics_outlined, color: blueColor),
+              selectedIcon: Icon(Icons.analytics, color: textColor),
+              label: '현황',
+            ),
+            const NavigationDestination(
               icon: Icon(Icons.person_outline, color: blueColor),
               selectedIcon: Icon(Icons.person, color: textColor),
               label: '마이',
@@ -143,7 +149,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             textColor: greenColor,
             onPressed: () {
               if (mounted) {
-                setState(() => _selectedIndex = 1);
+                setState(() => _selectedIndex = 2);
               }
             },
           ),
