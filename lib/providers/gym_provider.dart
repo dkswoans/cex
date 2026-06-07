@@ -320,10 +320,11 @@ class GymProvider extends ChangeNotifier {
   int getWeeklyUsageMinutes() {
     final user = currentUser;
     if (user == null) return 0;
-    final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+    final weekStart = _currentKoreaWeekStartAsUtc();
     return usageLogs
         .where(
-          (log) => log.userId == user.userId && log.endedAt.isAfter(weekAgo),
+          (log) =>
+              log.userId == user.userId && !log.endedAt.isBefore(weekStart),
         )
         .fold(0, (sum, log) => sum + log.usedMinutes);
   }
@@ -331,10 +332,11 @@ class GymProvider extends ChangeNotifier {
   int getWeeklySessionCount() {
     final user = currentUser;
     if (user == null) return 0;
-    final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+    final weekStart = _currentKoreaWeekStartAsUtc();
     return usageLogs
         .where(
-          (log) => log.userId == user.userId && log.endedAt.isAfter(weekAgo),
+          (log) =>
+              log.userId == user.userId && !log.endedAt.isBefore(weekStart),
         )
         .length;
   }
@@ -1531,6 +1533,17 @@ class GymProvider extends ChangeNotifier {
 
   DateTime _koreaTime(DateTime dateTime) {
     return dateTime.toUtc().add(const Duration(hours: 9));
+  }
+
+  DateTime _currentKoreaWeekStartAsUtc() {
+    final nowKst = _koreaTime(DateTime.now());
+    final daysSinceSunday = nowKst.weekday % DateTime.sunday;
+    final sundayKst = DateTime(
+      nowKst.year,
+      nowKst.month,
+      nowKst.day,
+    ).subtract(Duration(days: daysSinceSunday));
+    return sundayKst.subtract(const Duration(hours: 9));
   }
 
   String _formatKoreaTime(DateTime dateTime) {

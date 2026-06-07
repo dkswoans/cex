@@ -89,7 +89,9 @@ class WobblyCardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant WobblyCardPainter old) =>
-      old.seed != seed || old.fillColor != fillColor || old.jitterScale != jitterScale;
+      old.seed != seed ||
+      old.fillColor != fillColor ||
+      old.jitterScale != jitterScale;
 }
 
 class WobblyCardClipper extends CustomClipper<Path> {
@@ -99,7 +101,8 @@ class WobblyCardClipper extends CustomClipper<Path> {
   final double jitterScale;
 
   @override
-  Path getClip(Size size) => buildWobblyPath(seed, size, jitterScale: jitterScale);
+  Path getClip(Size size) =>
+      buildWobblyPath(seed, size, jitterScale: jitterScale);
 
   @override
   bool shouldReclip(covariant WobblyCardClipper old) =>
@@ -113,19 +116,27 @@ class WobblyCard extends StatelessWidget {
     required this.shadows,
     required this.child,
     this.padding = const EdgeInsets.all(AppSpacing.lg),
+    this.margin = const EdgeInsets.symmetric(vertical: 8),
+    this.fillColor = surfaceColor,
   });
 
   final String seed;
   final List<BoxShadow> shadows;
   final Widget child;
   final EdgeInsets padding;
+  final EdgeInsets margin;
+  final Color fillColor;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: margin,
       child: CustomPaint(
-        painter: WobblyCardPainter(seed: seed, shadows: shadows),
+        painter: WobblyCardPainter(
+          seed: seed,
+          shadows: shadows,
+          fillColor: fillColor,
+        ),
         child: ClipPath(
           clipper: WobblyCardClipper(seed: seed),
           child: Padding(padding: padding, child: child),

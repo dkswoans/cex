@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +9,7 @@ import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
 import '../utils/time_utils.dart';
 import '../widgets/app_design.dart';
+import '../widgets/wobbly_card.dart';
 import 'machine_detail_page.dart';
 
 class StatusPage extends StatelessWidget {
@@ -50,9 +53,9 @@ class StatusPage extends StatelessWidget {
                 const SizedBox(height: 14),
                 _MetricGrid(snapshot: snapshot),
                 const SizedBox(height: 18),
-                const AppSectionTitle('오늘 인기 기구 TOP 3'),
+                const _StatusSectionTitle('오늘 인기 기구 TOP 3'),
                 if (popularMachines.isEmpty)
-                  const AppEmptyPanel(text: '오늘 이용/예약 기록이 아직 없습니다.')
+                  const _StatusEmptyPanel(text: '오늘 이용/예약 기록이 아직 없습니다.')
                 else
                   ...popularMachines.asMap().entries.map(
                     (entry) => _PopularMachineTile(
@@ -64,10 +67,10 @@ class StatusPage extends StatelessWidget {
                     ),
                   ),
                 const SizedBox(height: 18),
-                const AppSectionTitle('시간대별 혼잡도'),
+                const _StatusSectionTitle('시간대별 혼잡도'),
                 _HourlyCongestionPanel(snapshot: snapshot),
                 const SizedBox(height: 18),
-                const AppSectionTitle('러닝/사이클 자리'),
+                const _StatusSectionTitle('러닝/사이클 자리'),
                 _CardioCapacityRow(snapshot: snapshot),
               ],
             ),
@@ -136,6 +139,10 @@ class _GymStatusSnapshot {
 
   List<_HourlyCongestion> get hourlyCongestion {
     return _hourlyCongestion(provider, now, totalUnits);
+  }
+
+  _HourlySlotDetails detailsFor(_HourlyCongestion slot) {
+    return _slotDetails(provider, slot.startAt, slot.endAt, now);
   }
 
   List<MachineModel> get cardioMachines {
@@ -302,6 +309,8 @@ class _GymStatusSnapshot {
       return _HourlyCongestion(
         timeLabel:
             '${slot.$1.toString().padLeft(2, '0')}:${slot.$2.toString().padLeft(2, '0')}',
+        startAt: startAt,
+        endAt: endAt,
         load: load,
         capacity: capacity,
         ratio: ratio,
@@ -309,6 +318,112 @@ class _GymStatusSnapshot {
         color: level.$2,
       );
     }).toList();
+  }
+
+  static _HourlySlotDetails _slotDetails(
+    GymProvider provider,
+    DateTime startAt,
+    DateTime endAt,
+    DateTime now,
+  ) {
+    final reservedEntries = <_SlotDetailEntry>[];
+    final useEntries = <_SlotDetailEntry>[];
+    final activeKeys = <String>{};
+
+    final slotReservations =
+        provider.reservations.where((reservation) {
+          if (!_isDashboardMachine(reservation.machineId)) return false;
+          if (!_isLiveReservation(reservation)) return false;
+          final reservedStartAt = reservation.reservedStartAt;
+          final reservedEndAt = reservation.reservedEndAt;
+          if (reservedStartAt == null || reservedEndAt == null) {
+            return false;
+          }
+          return _overlaps(reservedStartAt, reservedEndAt, startAt, endAt);
+        }).toList()..sort(
+          (a, b) => (a.reservedStartAt ?? a.createdAt).compareTo(
+            b.reservedStartAt ?? b.createdAt,
+          ),
+        );
+
+    for (final reservation in slotReservations) {
+      final machine = _machineForId(provider, reservation.machineId);
+      final title = machine?.name ?? reservation.machineName;
+      final subtitle = _reservationSlotSubtitle(reservation, machine);
+      if (reservation.status == ReservationStatus.active) {
+        activeKeys.add('${reservation.machineId}:${reservation.userId}');
+        useEntries.add(
+          _SlotDetailEntry(
+            title: title,
+            subtitle: subtitle,
+            badge: '사용 중',
+            color: redColor,
+            machine: machine,
+          ),
+        );
+      } else {
+        reservedEntries.add(
+          _SlotDetailEntry(
+            title: title,
+            subtitle: subtitle,
+            badge: '예약',
+            color: amberColor,
+            machine: machine,
+          ),
+        );
+      }
+    }
+
+    for (final machine in provider.machines) {
+      if (!_isDashboardMachine(machine.machineId)) continue;
+      if (machine.status == MachineStatus.repair) continue;
+      if (!_directUsageOverlaps(machine, startAt, endAt)) continue;
+
+      final userIds = _splitMultiValue(machine.currentUserId);
+      final userNames = _splitMultiValue(machine.currentUserName);
+      for (var index = 0; index < userIds.length; index++) {
+        final baseUserId = _baseUserId(userIds[index]);
+        if (activeKeys.contains('${machine.machineId}:$baseUserId')) continue;
+        final userName = index < userNames.length
+            ? userNames[index]
+            : baseUserId;
+        useEntries.add(
+          _SlotDetailEntry(
+            title: machine.name,
+            subtitle:
+                '$userName · ${formatTimeRange(machine.startedAt, machine.endAt)}',
+            badge: '사용 중',
+            color: redColor,
+            machine: machine,
+          ),
+        );
+      }
+    }
+
+    final usageLogs = provider.usageLogs.where((log) {
+      if (!_isDashboardMachine(log.machineId)) return false;
+      if (!log.endedAt.isBefore(now)) return false;
+      return _overlaps(log.startedAt, log.endedAt, startAt, endAt);
+    }).toList()..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+
+    for (final log in usageLogs) {
+      final machine = _machineForId(provider, log.machineId);
+      useEntries.add(
+        _SlotDetailEntry(
+          title: machine?.name ?? log.machineName,
+          subtitle:
+              '${log.userName} · ${formatTimeRange(log.startedAt, log.endedAt)}',
+          badge: '사용 기록',
+          color: blueColor,
+          machine: machine,
+        ),
+      );
+    }
+
+    return _HourlySlotDetails(
+      reservedEntries: reservedEntries,
+      useEntries: useEntries,
+    );
   }
 
   static int _reservationLoadForSlot(
@@ -382,6 +497,33 @@ class _GymStatusSnapshot {
         .length;
   }
 
+  static List<String> _splitMultiValue(String? value) {
+    if (value == null || value.isEmpty) return [];
+    return value
+        .split('|')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
+
+  static String _baseUserId(String value) {
+    return value.split('@').first;
+  }
+
+  static String _reservationSlotSubtitle(
+    ReservationModel reservation,
+    MachineModel? machine,
+  ) {
+    final range = formatTimeRange(
+      reservation.reservedStartAt,
+      reservation.reservedEndAt,
+    );
+    if (machine == null || reservation.machineName == machine.name) {
+      return '${reservation.userName} · $range';
+    }
+    return '${reservation.userName} · ${reservation.machineName} · $range';
+  }
+
   static bool _overlaps(
     DateTime firstStartAt,
     DateTime firstEndAt,
@@ -445,6 +587,8 @@ class _PopularMachine {
 class _HourlyCongestion {
   const _HourlyCongestion({
     required this.timeLabel,
+    required this.startAt,
+    required this.endAt,
     required this.load,
     required this.capacity,
     required this.ratio,
@@ -453,11 +597,41 @@ class _HourlyCongestion {
   });
 
   final String timeLabel;
+  final DateTime startAt;
+  final DateTime endAt;
   final int load;
   final int capacity;
   final double ratio;
   final String statusLabel;
   final Color color;
+}
+
+class _HourlySlotDetails {
+  const _HourlySlotDetails({
+    required this.reservedEntries,
+    required this.useEntries,
+  });
+
+  final List<_SlotDetailEntry> reservedEntries;
+  final List<_SlotDetailEntry> useEntries;
+
+  bool get isEmpty => reservedEntries.isEmpty && useEntries.isEmpty;
+}
+
+class _SlotDetailEntry {
+  const _SlotDetailEntry({
+    required this.title,
+    required this.subtitle,
+    required this.badge,
+    required this.color,
+    required this.machine,
+  });
+
+  final String title;
+  final String subtitle;
+  final String badge;
+  final Color color;
+  final MachineModel? machine;
 }
 
 class _UsingMachine {
@@ -474,6 +648,92 @@ class _UsingMachine {
   final List<ReservationModel> users;
 }
 
+class _StatusWobblyCard extends StatelessWidget {
+  const _StatusWobblyCard({
+    required this.seed,
+    required this.child,
+    this.fillColor = surfaceColor,
+    this.padding = const EdgeInsets.all(14),
+    this.margin = const EdgeInsets.symmetric(vertical: 4),
+    this.shadows,
+    this.rotation,
+  });
+
+  final String seed;
+  final Widget child;
+  final Color fillColor;
+  final EdgeInsets padding;
+  final EdgeInsets margin;
+  final List<BoxShadow>? shadows;
+  final double? rotation;
+
+  @override
+  Widget build(BuildContext context) {
+    final angle =
+        rotation ?? (math.Random(seed.hashCode).nextDouble() - 0.5) * 0.045;
+    return Transform.rotate(
+      angle: angle,
+      child: WobblyCard(
+        seed: seed,
+        shadows: shadows ?? randomShadows(seed),
+        fillColor: fillColor,
+        padding: padding,
+        margin: margin,
+        child: child,
+      ),
+    );
+  }
+}
+
+class _StatusSectionTitle extends StatelessWidget {
+  const _StatusSectionTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final rng = math.Random(text.hashCode);
+    final angle = (rng.nextDouble() - 0.5) * 0.11;
+    const colors = [textColor, blueColor, redColor, amberColor];
+    final color = colors[rng.nextInt(colors.length)];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3, top: 4),
+      child: Transform.rotate(
+        alignment: Alignment.centerLeft,
+        angle: angle,
+        child: Text(
+          text,
+          style: TextStyle(
+            color: color,
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+            height: 1,
+            letterSpacing: 0,
+            shadows: const [
+              Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusEmptyPanel extends StatelessWidget {
+  const _StatusEmptyPanel({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return _StatusWobblyCard(
+      seed: 'empty_$text',
+      child: Center(child: Text(text, style: AppTextStyles.empty)),
+    );
+  }
+}
+
 class _CongestionPanel extends StatelessWidget {
   const _CongestionPanel({required this.snapshot});
 
@@ -481,75 +741,68 @@ class _CongestionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: -0.01,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: surfaceColor,
-          border: Border.all(color: borderColor, width: 4),
-          borderRadius: BorderRadius.circular(AppRadii.lg),
-          boxShadow: const [
-            BoxShadow(color: blueColor, offset: Offset(5, 5), blurRadius: 0),
-            BoxShadow(color: redColor, offset: Offset(-2, -2), blurRadius: 0),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 82,
-              height: 82,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: snapshot.congestionColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: borderColor, width: 4),
+    return _StatusWobblyCard(
+      seed: 'status_congestion',
+      rotation: -0.012,
+      padding: const EdgeInsets.all(16),
+      shadows: const [
+        BoxShadow(color: blueColor, offset: Offset(5, 5), blurRadius: 0),
+        BoxShadow(color: redColor, offset: Offset(-2, -2), blurRadius: 0),
+      ],
+      child: Row(
+        children: [
+          Container(
+            width: 82,
+            height: 82,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: snapshot.congestionColor,
+              border: Border.all(color: borderColor, width: 4),
+            ),
+            child: Text(
+              snapshot.congestionLabel,
+              style: const TextStyle(
+                color: borderColor,
+                fontSize: 21,
+                fontWeight: FontWeight.w900,
+                height: 1,
               ),
-              child: Text(
-                snapshot.congestionLabel,
-                style: const TextStyle(
-                  color: borderColor,
-                  fontSize: 21,
-                  fontWeight: FontWeight.w900,
-                  height: 1,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '오늘 헬스장 상태',
+                  style: TextStyle(
+                    color: bgColor,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black,
+                        offset: Offset(2, 2),
+                        blurRadius: 0,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '오늘 헬스장 상태',
-                    style: TextStyle(
-                      color: bgColor,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black,
-                          offset: Offset(2, 2),
-                          blurRadius: 0,
-                        ),
-                      ],
-                    ),
+                const SizedBox(height: 6),
+                Text(
+                  snapshot.congestionMessage,
+                  style: const TextStyle(
+                    color: borderColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    height: 1.25,
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    snapshot.congestionMessage,
-                    style: const TextStyle(
-                      color: borderColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      height: 1.25,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -576,17 +829,14 @@ class _PopularMachineTile extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 9),
-      child: InkWell(
+      child: GestureDetector(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        child: Container(
+        child: _StatusWobblyCard(
+          seed: 'popular_${rank}_${item.machineName}',
+          fillColor: Color.lerp(rankColor, bgColor, 0.32)!,
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Color.lerp(rankColor, bgColor, 0.32),
-            border: Border.all(color: borderColor, width: 3),
-            borderRadius: BorderRadius.circular(AppRadii.md),
-            boxShadow: AppShadows.sticker,
-          ),
+          margin: EdgeInsets.zero,
+          shadows: chipShadows('popular_${rank}_${item.machineName}'),
           child: Row(
             children: [
               Container(
@@ -595,7 +845,7 @@ class _PopularMachineTile extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: rankColor,
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
                   border: Border.all(color: borderColor, width: 3),
                 ),
                 child: Text(
@@ -647,97 +897,396 @@ class _HourlyCongestionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = snapshot.hourlyCongestion;
-    return Container(
+    final navigator = Navigator.of(context);
+    return _StatusWobblyCard(
+      seed: 'hourly_congestion',
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        border: Border.all(color: borderColor, width: 3),
-        borderRadius: BorderRadius.circular(AppRadii.lg),
-        boxShadow: AppShadows.sticker,
-      ),
       child: Column(
         children: items
             .map(
               (item) => Padding(
                 padding: EdgeInsets.only(bottom: item == items.last ? 0 : 10),
-                child: _HourlyCongestionRow(item: item),
+                child: _HourlyCongestionRow(
+                  item: item,
+                  onTap: () => _showSlotDetails(context, navigator, item),
+                ),
               ),
             )
             .toList(),
       ),
     );
   }
+
+  void _showSlotDetails(
+    BuildContext context,
+    NavigatorState navigator,
+    _HourlyCongestion item,
+  ) {
+    final details = snapshot.detailsFor(item);
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _HourlySlotDialog(
+        item: item,
+        details: details,
+        onOpenMachine: (machine) {
+          Navigator.of(dialogContext).pop();
+          navigator.push(
+            MaterialPageRoute(
+              builder: (_) => MachineDetailPage(machineId: machine.machineId),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
 
 class _HourlyCongestionRow extends StatelessWidget {
-  const _HourlyCongestionRow({required this.item});
+  const _HourlyCongestionRow({required this.item, required this.onTap});
 
   final _HourlyCongestion item;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 52,
-          child: Text(
-            item.timeLabel,
-            style: const TextStyle(
-              color: textColor,
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Container(
-            height: 22,
-            decoration: BoxDecoration(
-              color: bgColor,
-              border: Border.all(color: borderColor, width: 2),
-              borderRadius: BorderRadius.circular(AppRadii.pill),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: FractionallySizedBox(
-                widthFactor: item.ratio,
-                heightFactor: 1,
-                child: ColoredBox(color: item.color),
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 52,
+            child: Text(
+              item.timeLabel,
+              style: const TextStyle(
+                color: textColor,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          width: 58,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(vertical: 5),
-          decoration: BoxDecoration(
-            color: item.color,
-            border: Border.all(color: borderColor, width: 2),
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-          ),
-          child: Text(
-            item.statusLabel,
-            style: const TextStyle(
-              color: borderColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              height: 1,
+          Expanded(
+            child: Container(
+              height: 22,
+              decoration: BoxDecoration(
+                color: bgColor,
+                border: Border.all(color: borderColor, width: 2),
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: item.ratio,
+                  heightFactor: 1,
+                  child: ColoredBox(color: item.color),
+                ),
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 42,
-          child: Text(
-            '${item.load}/${item.capacity}',
-            textAlign: TextAlign.right,
-            style: AppTextStyles.label,
+          const SizedBox(width: 8),
+          Container(
+            width: 58,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            decoration: BoxDecoration(
+              color: item.color,
+              border: Border.all(color: borderColor, width: 2),
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+            ),
+            child: Text(
+              item.statusLabel,
+              style: const TextStyle(
+                color: borderColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                height: 1,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 42,
+            child: Text(
+              '${item.load}/${item.capacity}',
+              textAlign: TextAlign.right,
+              style: AppTextStyles.label,
+            ),
+          ),
+          const Icon(Icons.chevron_right, color: textColor, size: 18),
+        ],
+      ),
+    );
+  }
+}
+
+class _HourlySlotDialog extends StatelessWidget {
+  const _HourlySlotDialog({
+    required this.item,
+    required this.details,
+    required this.onOpenMachine,
+  });
+
+  final _HourlyCongestion item;
+  final _HourlySlotDetails details;
+  final void Function(MachineModel machine) onOpenMachine;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 620),
+        child: _StatusWobblyCard(
+          seed: 'slot_dialog_${item.timeLabel}',
+          rotation: -0.01,
+          margin: EdgeInsets.zero,
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: item.color,
+                      border: Border.all(color: borderColor, width: 3),
+                      borderRadius: BorderRadius.circular(AppRadii.sm),
+                    ),
+                    child: Text(
+                      item.timeLabel,
+                      style: const TextStyle(
+                        color: borderColor,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '${formatTimeOnly(item.startAt)} - ${formatTimeOnly(item.endAt)}',
+                      style: const TextStyle(
+                        color: textColor,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black,
+                            offset: Offset(2, 2),
+                            blurRadius: 0,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close, color: borderColor),
+                    tooltip: '닫기',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  border: Border.all(color: borderColor, width: 3),
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                ),
+                child: Text(
+                  '예약 ${details.reservedEntries.length}건 · 사용 ${details.useEntries.length}건',
+                  style: const TextStyle(
+                    color: borderColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (details.isEmpty)
+                const _StatusEmptyPanel(text: '이 시간대에 표시할 기구가 없습니다.')
+              else
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      _SlotDetailSection(
+                        title: '예약된 기구',
+                        entries: details.reservedEntries,
+                        emptyText: '예약된 기구가 없습니다.',
+                        onOpenMachine: onOpenMachine,
+                      ),
+                      const SizedBox(height: 12),
+                      _SlotDetailSection(
+                        title: '사용 중 / 사용 기록',
+                        entries: details.useEntries,
+                        emptyText: '사용 중인 기구가 없습니다.',
+                        onOpenMachine: onOpenMachine,
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SlotDetailSection extends StatelessWidget {
+  const _SlotDetailSection({
+    required this.title,
+    required this.entries,
+    required this.emptyText,
+    required this.onOpenMachine,
+  });
+
+  final String title;
+  final List<_SlotDetailEntry> entries;
+  final String emptyText;
+  final void Function(MachineModel machine) onOpenMachine;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: textColor,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            height: 1,
+            shadows: [
+              Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (entries.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: bgColor,
+              border: Border.all(color: borderColor, width: 2.5),
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+            ),
+            child: Text(
+              emptyText,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.empty,
+            ),
+          )
+        else
+          ...entries.asMap().entries.map(
+            (entry) => Padding(
+              padding: EdgeInsets.only(
+                bottom: entry.key == entries.length - 1 ? 0 : 8,
+              ),
+              child: _SlotDetailTile(
+                entry: entry.value,
+                onTap: entry.value.machine == null
+                    ? null
+                    : () => onOpenMachine(entry.value.machine!),
+              ),
+            ),
+          ),
       ],
+    );
+  }
+}
+
+class _SlotDetailTile extends StatelessWidget {
+  const _SlotDetailTile({required this.entry, required this.onTap});
+
+  final _SlotDetailEntry entry;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: bgColor,
+          border: Border.all(color: borderColor, width: 2.5),
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+          boxShadow: const [
+            BoxShadow(color: borderColor, offset: Offset(2, 2), blurRadius: 0),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(width: 6, height: 44, color: entry.color),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          entry.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.itemTitle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: entry.color,
+                          border: Border.all(color: borderColor, width: 2),
+                          borderRadius: BorderRadius.circular(AppRadii.sm),
+                        ),
+                        child: Text(
+                          entry.badge,
+                          style: const TextStyle(
+                            color: borderColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    entry.subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.label,
+                  ),
+                ],
+              ),
+            ),
+            if (onTap != null)
+              const Icon(Icons.chevron_right, color: textColor, size: 20),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1085,7 +1634,7 @@ class _CardioCapacityRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final machines = snapshot.cardioMachines;
     if (machines.isEmpty) {
-      return const AppEmptyPanel(text: '유산소 기구 정보를 찾을 수 없습니다.');
+      return const _StatusEmptyPanel(text: '유산소 기구 정보를 찾을 수 없습니다.');
     }
 
     return Row(
@@ -1141,17 +1690,14 @@ class _MachineStatusTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(bottom: compact ? 0 : 9),
-      child: InkWell(
+      child: GestureDetector(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        child: Container(
+        child: _StatusWobblyCard(
+          seed: 'machine_status_$title',
+          fillColor: Color.lerp(color, bgColor, 0.28)!,
           padding: EdgeInsets.all(compact ? 10 : 12),
-          decoration: BoxDecoration(
-            color: Color.lerp(color, bgColor, 0.28),
-            border: Border.all(color: borderColor, width: 3),
-            borderRadius: BorderRadius.circular(AppRadii.md),
-            boxShadow: compact ? null : AppShadows.sticker,
-          ),
+          margin: EdgeInsets.zero,
+          shadows: compact ? chipShadows('machine_status_$title') : null,
           child: Row(
             children: [
               Expanded(
