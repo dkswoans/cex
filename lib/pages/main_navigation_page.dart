@@ -94,7 +94,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             const NavigationDestination(
               icon: Icon(Icons.map_outlined, color: blueColor),
               selectedIcon: Icon(Icons.map, color: textColor),
-              label: '지도봄',
+              label: '홈',
             ),
             const NavigationDestination(
               icon: Icon(Icons.analytics_outlined, color: blueColor),
@@ -104,7 +104,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             const NavigationDestination(
               icon: Icon(Icons.person_outline, color: blueColor),
               selectedIcon: Icon(Icons.person, color: textColor),
-              label: '마이',
+              label: '마이페이지',
             ),
             if (isAdmin)
               const NavigationDestination(
