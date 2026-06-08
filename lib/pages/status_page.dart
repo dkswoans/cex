@@ -181,6 +181,38 @@ class _GymStatusSnapshot {
     return result;
   }
 
+  List<_WaitingMachine> get waitingMachines {
+    final result =
+        provider.machines
+            .map((machine) {
+              return _WaitingMachine(
+                machine: machine,
+                waitingCount: provider.getWaitingCount(machine.machineId),
+              );
+            })
+            .where((entry) => entry.waitingCount > 0)
+            .toList()
+          ..sort((a, b) {
+            final waitingCompare = b.waitingCount.compareTo(a.waitingCount);
+            if (waitingCompare != 0) return waitingCompare;
+            return a.machine.name.compareTo(b.machine.name);
+          });
+    return result;
+  }
+
+  List<MachineModel> get repairMachines {
+    final result =
+        provider.machines
+            .where((machine) => machine.status == MachineStatus.repair)
+            .toList()
+          ..sort((a, b) {
+            final zoneCompare = a.zoneName.compareTo(b.zoneName);
+            if (zoneCompare != 0) return zoneCompare;
+            return a.name.compareTo(b.name);
+          });
+    return result;
+  }
+
   int remainingUnits(MachineModel machine) {
     if (machine.status == MachineStatus.repair) return 0;
     final capacity = provider.getMachineCapacity(machine.machineId);
@@ -646,6 +678,27 @@ class _UsingMachine {
   final int activeCount;
   final int capacity;
   final List<ReservationModel> users;
+}
+
+class _WaitingMachine {
+  const _WaitingMachine({required this.machine, required this.waitingCount});
+
+  final MachineModel machine;
+  final int waitingCount;
+}
+
+class _MetricMachineEntry {
+  const _MetricMachineEntry({
+    required this.machine,
+    required this.subtitle,
+    required this.trailing,
+    required this.color,
+  });
+
+  final MachineModel machine;
+  final String subtitle;
+  final String trailing;
+  final Color color;
 }
 
 class _StatusWobblyCard extends StatelessWidget {
@@ -1117,7 +1170,7 @@ class _HourlySlotDialog extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               if (details.isEmpty)
-                const _StatusEmptyPanel(text: '이 시간대에 표시할 기구가 없습니다.')
+                const _StatusEmptyPanel(text: '이 시간대에 예약된 기구가 없습니다.')
               else
                 Flexible(
                   child: ListView(
@@ -1126,7 +1179,7 @@ class _HourlySlotDialog extends StatelessWidget {
                       _SlotDetailSection(
                         title: '예약된 기구',
                         entries: details.reservedEntries,
-                        emptyText: '예약된 기구가 없습니다.',
+                        emptyText: '이 시간대에 예약된 기구가 없습니다.',
                         onOpenMachine: onOpenMachine,
                       ),
                       const SizedBox(height: 12),
@@ -1302,7 +1355,7 @@ class _MetricGrid extends StatelessWidget {
       children: [
         Expanded(
           child: _MetricTile(
-            label: '사용 중',
+            label: '누가씀',
             value: '${snapshot.activeUnits}/${snapshot.totalUnits}',
             color: redColor,
             icon: Icons.fitness_center,
@@ -1312,19 +1365,21 @@ class _MetricGrid extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: _MetricTile(
-            label: '대기',
+            label: '찜당함',
             value: '${snapshot.waitingTotal}',
             color: amberColor,
             icon: Icons.schedule,
+            onTap: () => _showWaitingMachines(context),
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
           child: _MetricTile(
-            label: '점검',
+            label: '고장남',
             value: '${snapshot.repairCount}',
             color: const Color(0xFF777777),
             icon: Icons.build,
+            onTap: () => _showRepairMachines(context),
           ),
         ),
       ],
@@ -1349,6 +1404,96 @@ class _MetricGrid extends StatelessWidget {
         },
       ),
     );
+  }
+
+  void _showWaitingMachines(BuildContext context) {
+    final entries = snapshot.waitingMachines
+        .map(
+          (entry) => _MetricMachineEntry(
+            machine: entry.machine,
+            subtitle: _machineSubtitle(
+              entry.machine,
+              '${entry.waitingCount}명 대기',
+            ),
+            trailing: '${entry.waitingCount}명',
+            color: amberColor,
+          ),
+        )
+        .toList();
+
+    _showMetricMachineList(
+      context,
+      title: '찜당함',
+      icon: Icons.schedule,
+      color: amberColor,
+      summary: entries.isEmpty
+          ? '대기 중인 기구가 없습니다.'
+          : '${snapshot.waitingTotal}명 대기 · ${entries.length}개 기구',
+      emptyText: '대기 중인 기구가 없습니다.',
+      entries: entries,
+    );
+  }
+
+  void _showRepairMachines(BuildContext context) {
+    final entries = snapshot.repairMachines
+        .map(
+          (machine) => _MetricMachineEntry(
+            machine: machine,
+            subtitle: _machineSubtitle(machine, '고장남'),
+            trailing: '고장남',
+            color: const Color(0xFF777777),
+          ),
+        )
+        .toList();
+
+    _showMetricMachineList(
+      context,
+      title: '고장남',
+      icon: Icons.build,
+      color: const Color(0xFF777777),
+      summary: entries.isEmpty
+          ? '점검 중인 기구가 없습니다.'
+          : '${entries.length}개 기구 고장남',
+      emptyText: '점검 중인 기구가 없습니다.',
+      entries: entries,
+    );
+  }
+
+  void _showMetricMachineList(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required Color color,
+    required String summary,
+    required String emptyText,
+    required List<_MetricMachineEntry> entries,
+  }) {
+    final navigator = Navigator.of(context);
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _MetricMachineListDialog(
+        title: title,
+        icon: icon,
+        color: color,
+        summary: summary,
+        emptyText: emptyText,
+        entries: entries,
+        onOpenMachine: (machine) {
+          Navigator.of(dialogContext).pop();
+          navigator.push(
+            MaterialPageRoute(
+              builder: (_) => MachineDetailPage(machineId: machine.machineId),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  String _machineSubtitle(MachineModel machine, String statusText) {
+    if (machine.zoneName.isEmpty) return statusText;
+    return '${machine.zoneName} · $statusText';
   }
 }
 
@@ -1412,7 +1557,7 @@ class _UsingMachinesDialog extends StatelessWidget {
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
-                        '지금 사용 중',
+                        '누가씀',
                         style: TextStyle(
                           color: bgColor,
                           fontSize: 22,
@@ -1561,6 +1706,225 @@ class _UsingMachineDialogTile extends StatelessWidget {
               style: const TextStyle(
                 color: textColor,
                 fontSize: 16,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: textColor),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MetricMachineListDialog extends StatelessWidget {
+  const _MetricMachineListDialog({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.summary,
+    required this.emptyText,
+    required this.entries,
+    required this.onOpenMachine,
+  });
+
+  final String title;
+  final IconData icon;
+  final Color color;
+  final String summary;
+  final String emptyText;
+  final List<_MetricMachineEntry> entries;
+  final void Function(MachineModel machine) onOpenMachine;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
+      child: Transform.rotate(
+        angle: -0.012,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460, maxHeight: 560),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              border: Border.all(color: borderColor, width: 4),
+              borderRadius: BorderRadius.circular(AppRadii.lg),
+              boxShadow: const [
+                BoxShadow(
+                  color: blueColor,
+                  offset: Offset(5, 5),
+                  blurRadius: 0,
+                ),
+                BoxShadow(
+                  color: redColor,
+                  offset: Offset(-2, -2),
+                  blurRadius: 0,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: color,
+                        border: Border.all(color: borderColor, width: 3),
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
+                      ),
+                      child: Icon(icon, color: borderColor, size: 24),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          color: bgColor,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black,
+                              offset: Offset(2, 2),
+                              blurRadius: 0,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close, color: borderColor),
+                      tooltip: '닫기',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    border: Border.all(color: borderColor, width: 3),
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                  ),
+                  child: Text(
+                    summary,
+                    style: const TextStyle(
+                      color: borderColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      height: 1.25,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (entries.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: AppEmptyPanel(text: emptyText),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: entries.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 9),
+                      itemBuilder: (context, index) => _MetricMachineListTile(
+                        entry: entries[index],
+                        onTap: () => onOpenMachine(entries[index].machine),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MetricMachineListTile extends StatelessWidget {
+  const _MetricMachineListTile({required this.entry, required this.onTap});
+
+  final _MetricMachineEntry entry;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadii.md),
+      child: Container(
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(
+          color: bgColor,
+          border: Border.all(color: borderColor, width: 3),
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          boxShadow: const [
+            BoxShadow(color: borderColor, offset: Offset(2, 2), blurRadius: 0),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: entry.color,
+                border: Border.all(color: borderColor, width: 2.5),
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+              child: Icon(
+                entry.machine.status == MachineStatus.repair
+                    ? Icons.build
+                    : Icons.schedule,
+                color: borderColor,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    entry.machine.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.itemTitle,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    entry.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: borderColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              entry.trailing,
+              style: const TextStyle(
+                color: textColor,
+                fontSize: 15,
                 fontWeight: FontWeight.w900,
               ),
             ),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'pages/login_page.dart';
 import 'providers/gym_provider.dart';
+import 'services/reservation_notification_service.dart';
 import 'services/supabase_config.dart';
 import 'utils/status_utils.dart';
 import 'widgets/app_design.dart';
@@ -10,6 +11,7 @@ import 'widgets/app_design.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SupabaseConfig.initialize();
+  await ReservationNotificationService.instance.initialize();
   runApp(const ApdoApp());
 }
 

@@ -10,6 +10,7 @@ import '../models/machine_model.dart';
 import '../models/reservation_model.dart';
 import '../models/usage_log_model.dart';
 import '../models/user_model.dart';
+import '../services/reservation_notification_service.dart';
 import '../services/supabase_config.dart';
 
 enum ReservationAlertType { upcoming, ready }
@@ -125,6 +126,7 @@ class GymProvider extends ChangeNotifier {
       if (showLoading) {
         isLoading = false;
       }
+      await _syncReservationNotifications();
       notifyListeners();
     }
   }
@@ -170,10 +172,19 @@ class GymProvider extends ChangeNotifier {
       name: name,
       role: adminUserIds.contains(userId) ? 'admin' : 'user',
     );
+    unawaited(_syncReservationNotifications());
     notifyListeners();
   }
 
   void logout() {
+    final user = currentUser;
+    if (user != null) {
+      unawaited(
+        ReservationNotificationService.instance.cancelUserReservations(
+          user.userId,
+        ),
+      );
+    }
     currentUser = null;
     notifyListeners();
   }
@@ -854,6 +865,7 @@ class GymProvider extends ChangeNotifier {
       startAt: DateTime.now(),
       minutes: minutes,
       actionName: '사용',
+      enforceBusinessHours: false,
     );
     if (businessError != null) return businessError;
     if (machine.status == MachineStatus.repair) {
@@ -888,36 +900,37 @@ class GymProvider extends ChangeNotifier {
       return '예약 사용 시간이 지났습니다.';
     }
     final requestedEndAt = now.add(Duration(minutes: minutes));
-    final endAt =
-        reservationEndAt == null || requestedEndAt.isBefore(reservationEndAt)
-        ? requestedEndAt
-        : reservationEndAt;
-    if (activeReservation == null) {
-      final overlappingCount = _overlappingOccupancyCount(
+    final endAt = requestedEndAt;
+    final overlappingCount = _overlappingOccupancyCount(
+      machineId,
+      startAt: now,
+      endAt: endAt,
+      variantLabel: variantLabel,
+      excludeReservationId: activeReservation?.reservationId,
+    );
+    if (overlappingCount >= getMachineCapacity(machineId)) {
+      final blockingReservation = _firstOverlappingReservation(
         machineId,
         startAt: now,
         endAt: endAt,
         variantLabel: variantLabel,
+        excludeReservationId: activeReservation?.reservationId,
       );
-      if (overlappingCount >= getMachineCapacity(machineId)) {
-        final blockingReservation = _firstOverlappingReservation(
-          machineId,
-          startAt: now,
-          endAt: endAt,
-          variantLabel: variantLabel,
-        );
-        if (blockingReservation?.reservedStartAt != null) {
-          return '사용 시간이 ${_formatKoreaTime(blockingReservation!.reservedStartAt!)} 예약과 겹칩니다.';
-        }
-        return '선택한 사용 시간이 다른 사용자와 겹칩니다.';
+      if (blockingReservation?.reservedStartAt != null) {
+        return '사용 시간이 ${_formatKoreaTime(blockingReservation!.reservedStartAt!)} 예약과 겹칩니다.';
       }
+      return '선택한 사용 시간이 다른 사용자와 겹칩니다.';
     }
 
     try {
       if (activeReservation != null) {
         await SupabaseConfig.client
             .from('reservations')
-            .update({'reserved_end_at': endAt.toIso8601String()})
+            .update({
+              'reserved_start_at': now.toIso8601String(),
+              'reserved_end_at': endAt.toIso8601String(),
+              'claim_expires_at': now.toIso8601String(),
+            })
             .eq('id', activeReservation.reservationId);
         final index = reservations.indexWhere(
           (reservation) =>
@@ -925,7 +938,9 @@ class GymProvider extends ChangeNotifier {
         );
         if (index != -1) {
           reservations[index] = reservations[index].copyWith(
+            reservedStartAt: now,
             reservedEndAt: endAt,
+            claimExpiresAt: now,
           );
         }
       }
@@ -985,7 +1000,7 @@ class GymProvider extends ChangeNotifier {
       userName: user.name,
       startedAt: startedAt,
       endedAt: now,
-      usedMinutes: now.difference(startedAt).inMinutes,
+      usedMinutes: _ceilPositiveMinutes(now.difference(startedAt)),
     );
 
     try {
@@ -1402,6 +1417,9 @@ class GymProvider extends ChangeNotifier {
       final alertSnapshot = _reservationAlertSnapshot(getMyReservationAlert());
       final alertChanged = alertSnapshot != _lastReservationAlertSnapshot;
       _lastReservationAlertSnapshot = alertSnapshot;
+      if (changed) {
+        unawaited(_syncReservationNotifications());
+      }
       if (changed || alertChanged) {
         notifyListeners();
       }
@@ -1438,6 +1456,38 @@ class GymProvider extends ChangeNotifier {
   String? _reservationAlertSnapshot(ReservationAlert? alert) {
     if (alert == null) return null;
     return '${alert.key}:${alert.minutesUntilStart}';
+  }
+
+  Future<void> _syncReservationNotifications() async {
+    final user = currentUser;
+    if (user == null) return;
+
+    await ReservationNotificationService.instance.syncForUserReservations(
+      userId: user.userId,
+      reservations: getMyReservations(),
+      claimedReservationIds: _claimedReservationIdsForCurrentUser(),
+    );
+  }
+
+  Set<String> _claimedReservationIdsForCurrentUser() {
+    final user = currentUser;
+    if (user == null) return const <String>{};
+
+    final claimedReservationIds = <String>{};
+    for (final reservation in getMyReservations()) {
+      if (reservation.status != ReservationStatus.active) continue;
+      final machine = machines
+          .where((item) => item.machineId == reservation.machineId)
+          .firstOrNull;
+      if (machine == null) continue;
+      final isCurrentUserUsingMachine = _splitMultiValue(
+        machine.currentUserId,
+      ).any((value) => _baseUserId(value) == user.userId);
+      if (isCurrentUserUsingMachine) {
+        claimedReservationIds.add(reservation.reservationId);
+      }
+    }
+    return claimedReservationIds;
   }
 
   Future<bool> _applyReservationWindows() async {
