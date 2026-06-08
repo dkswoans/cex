@@ -21,7 +21,35 @@ class MachineDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<GymProvider>(
       builder: (context, provider, _) {
-        final machine = provider.getMachineById(machineId);
+        MachineModel? machine;
+        for (final item in provider.machines) {
+          if (item.machineId == machineId) {
+            machine = item;
+            break;
+          }
+        }
+
+        if (machine == null) {
+          return Scaffold(
+            backgroundColor: bgColor,
+            appBar: AppBar(title: const Text('기구 정보')),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  provider.errorMessage ?? '기구 정보를 불러오지 못했습니다.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: redColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
         final currentUser = provider.currentUser;
         final reservations = provider
             .getReservationsByMachine(machineId)

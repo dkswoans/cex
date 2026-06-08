@@ -93,40 +93,6 @@ class AdminPage extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                _tiltedCard(
-                  seed: 'reset_btn',
-                  shadows: const [
-                    BoxShadow(color: redColor, offset: Offset(4, 4), blurRadius: 0),
-                  ],
-                  child: GestureDetector(
-                    onTap: isLoading ? null : () => _confirmReset(context, provider),
-                    child: Center(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.restore, color: redColor, size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            '데모 데이터 초기화',
-                            style: TextStyle(
-                              color: redColor,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black,
-                                  offset: Offset(2, 2),
-                                  blurRadius: 0,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
                 _sectionLabel('기구 목록'),
                 ...provider.machines.map(
                   (machine) => _tiltedCard(
@@ -194,32 +160,6 @@ class AdminPage extends StatelessWidget {
     );
   }
 
-  Future<void> _confirmReset(BuildContext context, GymProvider provider) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('데모 초기화'),
-        content: const Text('모든 예약과 사용 기록이 삭제되고\n기구가 기본 상태로 초기화됩니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: redColor),
-            child: const Text('초기화'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !context.mounted) return;
-    await provider.resetMachinesForDemo();
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('초기화가 완료되었습니다.')));
-  }
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────

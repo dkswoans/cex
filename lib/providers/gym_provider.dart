@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart'
     show PostgrestException, RealtimeChannel, PostgresChangeEvent;
 
 import '../config/secrets.dart';
-import '../data/machine_seed_data.dart';
 import '../models/machine_model.dart';
 import '../models/reservation_model.dart';
 import '../models/usage_log_model.dart';
@@ -121,6 +120,9 @@ class GymProvider extends ChangeNotifier {
       await _applyReservationWindows();
     } catch (error) {
       debugPrint('[GymProvider] syncFromDatabase error: $error');
+      machines.clear();
+      reservations.clear();
+      usageLogs.clear();
       errorMessage = '데이터를 불러오지 못했습니다.';
     } finally {
       if (showLoading) {
@@ -129,41 +131,6 @@ class GymProvider extends ChangeNotifier {
       await _syncReservationNotifications();
       notifyListeners();
     }
-  }
-
-  Future<void> seedOrUpdateMachines() async {
-    final now = DateTime.now();
-    final defaultMachines = createDefaultMachines(now);
-
-    await SupabaseConfig.client
-        .from('machines')
-        .upsert(
-          defaultMachines.map((machine) => machine.toSupabase()).toList(),
-        );
-    await SupabaseConfig.client.from('reservations').upsert([
-      ReservationModel(
-        reservationId: 'dummy_leg_press_1',
-        machineId: 'leg_press',
-        machineName: '레그프레스',
-        userId: 'dummy_2',
-        userName: '박지훈',
-        status: ReservationStatus.active,
-        createdAt: now.subtract(const Duration(minutes: 6)),
-        order: 1,
-        reservedStartAt: now.subtract(const Duration(minutes: 6)),
-        reservedEndAt: now.add(const Duration(minutes: 9)),
-        claimExpiresAt: now.subtract(const Duration(minutes: 5)),
-      ).toSupabase(),
-    ]);
-
-    await syncFromDatabase();
-  }
-
-  Future<void> resetMachinesForDemo() async {
-    await SupabaseConfig.client.from('reservations').delete().neq('id', '');
-    await SupabaseConfig.client.from('usage_logs').delete().neq('id', '');
-    await SupabaseConfig.client.from('machines').delete().neq('id', '');
-    await seedOrUpdateMachines();
   }
 
   void login({required String userId, required String name}) {
