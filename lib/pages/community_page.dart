@@ -151,9 +151,9 @@ const _cardTitleStyle = TextStyle(
 
 const _postDetailTitleStyle = TextStyle(
   color: borderColor,
-  fontSize: 24,
+  fontSize: 28,
   fontWeight: FontWeight.w900,
-  height: 1.2,
+  height: 1.12,
   letterSpacing: -0.3,
 );
 
@@ -190,6 +190,10 @@ const _cardTones = <_CardTone>[
 
 _CardTone _toneFor(String seed) =>
     _cardTones[seed.hashCode.abs() % _cardTones.length];
+
+double _cardWobbleAngle(String seed) {
+  return ((seed.hashCode.abs() % 9) - 4) * 0.007;
+}
 
 /// Black on light fills, white on dark fills — keeps text legible on any tone.
 Color _onColor(Color c) =>
@@ -389,145 +393,270 @@ class _CommunityPostCard extends StatelessWidget {
     final tone = _toneFor(post.postId);
     final isHot = commentCount >= 5;
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: _paper,
-        border: Border.all(color: borderColor, width: 3),
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        boxShadow: [
-          BoxShadow(
-            color: tone.shadow,
-            offset: const Offset(4, 4),
-            blurRadius: 0,
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          child: Stack(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 14, 14, 13),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 34,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: borderColor,
-                            borderRadius: BorderRadius.circular(AppRadii.pill),
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        Container(
-                          width: 16,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: tone.hero,
-                            border: Border.all(color: borderColor, width: 1),
-                            borderRadius: BorderRadius.circular(AppRadii.pill),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
+    return Transform.rotate(
+      angle: _cardWobbleAngle(post.postId),
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+          color: _paper,
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          boxShadow: [
+            BoxShadow(
+              color: tone.shadow,
+              offset: const Offset(4, 4),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: CustomPaint(
+          foregroundPainter: _WobblyCardBorderPainter(color: tone.hero),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 14, 14, 13),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Expanded(
-                          child: Text(
-                            post.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: _cardTitleStyle,
-                          ),
-                        ),
-                        if (isHot) ...[
-                          const SizedBox(width: 8),
-                          const _HotTag(),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _AuthorAvatar(
-                          name: post.authorName,
-                          size: 30,
-                          color: tone.hero,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                post.authorName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                        Row(
+                          children: [
+                            Container(
+                              width: 34,
+                              height: 5,
+                              decoration: BoxDecoration(
+                                color: borderColor,
+                                borderRadius: BorderRadius.circular(
+                                  AppRadii.pill,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Container(
+                              width: 16,
+                              height: 5,
+                              decoration: BoxDecoration(
+                                color: tone.hero,
+                                border: Border.all(
                                   color: borderColor,
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1.1,
-                                  letterSpacing: 0,
+                                  width: 1,
+                                ),
+                                borderRadius: BorderRadius.circular(
+                                  AppRadii.pill,
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                formatDateTime(post.createdAt),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: mutedTextColor,
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.1,
-                                  letterSpacing: 0,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        _PostMetric(
-                          icon: Icons.chat_bubble_outline,
-                          count: commentCount,
-                          fillColor: tone.hero,
+                        const SizedBox(height: 10),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                post.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: _cardTitleStyle,
+                              ),
+                            ),
+                            if (isHot) ...[
+                              const SizedBox(width: 8),
+                              const _HotTag(),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            _AuthorAvatar(
+                              name: post.authorName,
+                              size: 30,
+                              color: tone.hero,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    post.authorName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: borderColor,
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w800,
+                                      height: 1.1,
+                                      letterSpacing: 0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    formatDateTime(post.createdAt),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: mutedTextColor,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      height: 1.1,
+                                      letterSpacing: 0,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _PostMetric(
+                              icon: Icons.chat_bubble_outline,
+                              count: commentCount,
+                              fillColor: tone.hero,
+                            ),
+                          ],
                         ),
                       ],
-                    ),
-                  ],
-                ),
-              ),
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: Container(
-                  width: 10,
-                  decoration: BoxDecoration(
-                    color: tone.hero,
-                    border: const Border(
-                      right: BorderSide(color: borderColor, width: 2.5),
                     ),
                   ),
-                ),
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 10,
+                      decoration: BoxDecoration(
+                        color: tone.hero,
+                        border: const Border(
+                          right: BorderSide(color: borderColor, width: 2.5),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
+  }
+}
+
+class _WobblyCardBorderPainter extends CustomPainter {
+  const _WobblyCardBorderPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final width = size.width;
+    final height = size.height;
+    const inset = 2.0;
+
+    final outline = Path()
+      ..moveTo(13, inset + 3)
+      ..cubicTo(
+        width * 0.18,
+        inset - 4,
+        width * 0.36,
+        inset + 7,
+        width * 0.54,
+        inset + 1,
+      )
+      ..cubicTo(
+        width * 0.70,
+        inset - 5,
+        width * 0.86,
+        inset + 5,
+        width - 14,
+        inset + 2,
+      )
+      ..quadraticBezierTo(width - inset + 1, inset + 5, width - inset - 2, 15)
+      ..cubicTo(
+        width - inset + 5,
+        height * 0.28,
+        width - inset - 6,
+        height * 0.44,
+        width - inset + 2,
+        height * 0.61,
+      )
+      ..cubicTo(
+        width - inset + 6,
+        height * 0.76,
+        width - inset - 4,
+        height * 0.88,
+        width - 11,
+        height - inset - 2,
+      )
+      ..quadraticBezierTo(
+        width - inset - 2,
+        height - inset + 1,
+        width - 18,
+        height - inset - 1,
+      )
+      ..cubicTo(
+        width * 0.78,
+        height - inset + 5,
+        width * 0.58,
+        height - inset - 6,
+        width * 0.39,
+        height - inset + 2,
+      )
+      ..cubicTo(
+        width * 0.23,
+        height - inset + 8,
+        width * 0.12,
+        height - inset - 5,
+        12,
+        height - inset - 1,
+      )
+      ..quadraticBezierTo(inset - 1, height - inset - 3, inset + 2, height - 15)
+      ..cubicTo(
+        inset - 4,
+        height * 0.76,
+        inset + 6,
+        height * 0.59,
+        inset + 1,
+        height * 0.42,
+      )
+      ..cubicTo(
+        inset - 5,
+        height * 0.26,
+        inset + 5,
+        height * 0.13,
+        inset + 2,
+        13,
+      )
+      ..quadraticBezierTo(inset + 1, inset + 1, 13, inset + 3)
+      ..close();
+
+    final outlinePaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.4
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(outline, outlinePaint);
+
+    final accentPath = Path()
+      ..moveTo(18, 7)
+      ..cubicTo(32, 2, 46, 12, 60, 7)
+      ..quadraticBezierTo(70, 3, 83, 8);
+    final accentPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(accentPath, accentPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _WobblyCardBorderPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }
 
@@ -617,41 +746,53 @@ class _CommunityPostArticle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: _paper,
-        border: Border.all(color: borderColor, width: 3),
-        borderRadius: BorderRadius.circular(AppRadii.lg),
-        boxShadow: const [
-          BoxShadow(color: blueColor, offset: Offset(4, 4), blurRadius: 0),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(height: 8, color: redColor),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 15, 16, 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _DetailMetaRow(
-                  authorName: post.authorName,
-                  createdAt: post.createdAt,
-                  commentCount: commentCount,
-                ),
-                const SizedBox(height: 14),
-                Container(height: 2.5, color: borderColor),
-                const SizedBox(height: 16),
-                Text(post.title, style: _postDetailTitleStyle),
-                const SizedBox(height: 12),
-                _PostBodyText(text: post.body),
-              ],
+    final tone = _toneFor(post.postId);
+
+    return Transform.rotate(
+      angle: _cardWobbleAngle('detail_${post.postId}') * 0.45,
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: _paper,
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+          boxShadow: [
+            BoxShadow(
+              color: tone.shadow,
+              offset: const Offset(4, 4),
+              blurRadius: 0,
             ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: CustomPaint(
+          foregroundPainter: _WobblyCardBorderPainter(color: tone.hero),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(height: 8, color: tone.hero),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 15, 16, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(post.title, style: _postDetailTitleStyle),
+                    const SizedBox(height: 13),
+                    _DetailMetaRow(
+                      authorName: post.authorName,
+                      createdAt: post.createdAt,
+                      commentCount: commentCount,
+                      accentColor: tone.hero,
+                    ),
+                    const SizedBox(height: 14),
+                    Container(height: 2.5, color: borderColor),
+                    const SizedBox(height: 16),
+                    _PostBodyText(text: post.body),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -673,55 +814,76 @@ class _DetailMetaRow extends StatelessWidget {
     required this.authorName,
     required this.createdAt,
     required this.commentCount,
+    this.accentColor = textColor,
   });
 
   final String authorName;
   final DateTime createdAt;
   final int commentCount;
+  final Color accentColor;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        _AuthorAvatar(name: authorName, size: 44, color: textColor),
-        const SizedBox(width: 11),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                authorName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: borderColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  height: 1.15,
-                  letterSpacing: 0,
-                ),
+              Row(
+                children: [
+                  Icon(Icons.person_outline, size: 16, color: accentColor),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      authorName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: borderColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        height: 1.15,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 3),
-              Text(
-                formatDateTime(createdAt),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: mutedTextColor,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  height: 1.15,
-                  letterSpacing: 0,
-                ),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.access_time_rounded,
+                    size: 15,
+                    color: mutedTextColor,
+                  ),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      formatDateTime(createdAt),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: mutedTextColor,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        height: 1.15,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
+        const SizedBox(width: 10),
         _PostMetric(
           icon: Icons.chat_bubble_outline,
           count: commentCount,
-          fillColor: greenColor,
+          fillColor: accentColor,
         ),
       ],
     );
@@ -1105,75 +1267,87 @@ class _CommentTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final tone = _toneFor(comment.authorName);
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(12, 11, 10, 12),
-      decoration: BoxDecoration(
-        color: _paper,
-        border: Border.all(color: borderColor, width: 2),
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        boxShadow: const [
-          BoxShadow(color: borderColor, offset: Offset(2, 2), blurRadius: 0),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _AuthorAvatar(
-                name: comment.authorName,
-                size: 32,
-                color: tone.hero,
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Column(
+    return Transform.rotate(
+      angle: _cardWobbleAngle(comment.commentId) * 0.35,
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: _paper,
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          boxShadow: [
+            BoxShadow(
+              color: tone.shadow,
+              offset: const Offset(2, 2),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: CustomPaint(
+          foregroundPainter: _WobblyCardBorderPainter(color: tone.hero),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 11, 10, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      comment.authorName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: borderColor,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        height: 1.15,
-                        letterSpacing: 0,
+                    _AuthorAvatar(
+                      name: comment.authorName,
+                      size: 32,
+                      color: tone.hero,
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            comment.authorName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: borderColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              height: 1.15,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            formatDateTime(comment.createdAt),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: mutedTextColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              height: 1.15,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      formatDateTime(comment.createdAt),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: mutedTextColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        height: 1.15,
-                        letterSpacing: 0,
+                    if (canDelete)
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: '삭제',
+                        color: redColor,
+                        onPressed: onDelete,
                       ),
-                    ),
                   ],
                 ),
-              ),
-              if (canDelete)
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: '삭제',
-                  color: redColor,
-                  onPressed: onDelete,
-                ),
-            ],
+                const SizedBox(height: 10),
+                Text(comment.body, style: _commentBodyStyle),
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
-          Text(comment.body, style: _commentBodyStyle),
-        ],
+        ),
       ),
     );
   }
