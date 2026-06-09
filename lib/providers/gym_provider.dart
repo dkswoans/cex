@@ -31,6 +31,8 @@ class ReservationAlert {
 class GymProvider extends ChangeNotifier {
   static const bool _bypassBusinessHoursForTesting = false;
   static const String _multiUserSeparator = '|';
+  static const String defaultHomeTitle = 'BSSM GYM !!!';
+  static const String _homeTitleSettingKey = 'home_title';
   static const Duration reservationAlertLeadTime = Duration(minutes: 5);
 
   GymProvider() {
@@ -43,6 +45,7 @@ class GymProvider extends ChangeNotifier {
   final List<MachineModel> machines = [];
   final List<ReservationModel> reservations = [];
   final List<UsageLogModel> usageLogs = [];
+  String _homeTitle = defaultHomeTitle;
   bool isLoading = false;
   bool isActionLoading = false;
   String? errorMessage;
@@ -51,6 +54,8 @@ class GymProvider extends ChangeNotifier {
   RealtimeChannel? _realtimeChannel;
   Timer? _realtimeDebounce;
   String? _lastReservationAlertSnapshot;
+
+  String get homeTitle => _homeTitle;
 
   Future<String> _runAction(Future<String> Function() action) async {
     isActionLoading = true;
@@ -94,6 +99,7 @@ class GymProvider extends ChangeNotifier {
           .from('usage_logs')
           .select()
           .order('ended_at');
+      await _syncAppSettings();
 
       machines
         ..clear()
@@ -1090,6 +1096,35 @@ class GymProvider extends ChangeNotifier {
     }
   });
 
+  Future<String> updateHomeTitle(String title) => _runAction(() async {
+    final user = currentUser;
+    if (user?.role != 'admin') {
+      return '관리자만 홈 제목을 바꿀 수 있습니다.';
+    }
+
+    final normalizedTitle = _normalizeHomeTitle(title);
+    if (normalizedTitle.isEmpty) {
+      return '제목을 입력하세요.';
+    }
+    if (normalizedTitle.length > 40) {
+      return '제목은 40자까지 입력할 수 있습니다.';
+    }
+
+    try {
+      await SupabaseConfig.client.from('app_settings').upsert({
+        'key': _homeTitleSettingKey,
+        'value': normalizedTitle,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }, onConflict: 'key');
+      _homeTitle = normalizedTitle;
+      notifyListeners();
+      return '홈 제목을 변경했습니다.';
+    } catch (error) {
+      debugPrint('[GymProvider] updateHomeTitle error: $error');
+      return '홈 제목 저장에 실패했습니다. Supabase SQL을 먼저 적용했는지 확인하세요.';
+    }
+  });
+
   int getRemainingMinutes(MachineModel machine) {
     final endAt = machine.endAt;
     if (endAt == null) return 0;
@@ -1408,6 +1443,12 @@ class GymProvider extends ChangeNotifier {
           table: 'reservations',
           callback: (_) => _scheduleRealtimeSync(),
         )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'app_settings',
+          callback: (_) => _scheduleRealtimeSync(),
+        )
         .subscribe();
     _realtimeChannel = channel;
   }
@@ -1584,6 +1625,35 @@ class GymProvider extends ChangeNotifier {
         .from('machines')
         .update(values)
         .eq('id', machine.machineId);
+  }
+
+  Future<void> _syncAppSettings() async {
+    try {
+      final rows = await SupabaseConfig.client
+          .from('app_settings')
+          .select('value')
+          .eq('key', _homeTitleSettingKey)
+          .limit(1);
+      if (rows.isEmpty) {
+        _homeTitle = defaultHomeTitle;
+        return;
+      }
+      final value = rows.first['value']?.toString();
+      final normalizedTitle = _normalizeHomeTitle(value ?? '');
+      _homeTitle = normalizedTitle.isEmpty ? defaultHomeTitle : normalizedTitle;
+    } on PostgrestException catch (error) {
+      if (error.code != '42P01') {
+        debugPrint('[GymProvider] _syncAppSettings error: $error');
+      }
+      _homeTitle = defaultHomeTitle;
+    } catch (error) {
+      debugPrint('[GymProvider] _syncAppSettings error: $error');
+      _homeTitle = defaultHomeTitle;
+    }
+  }
+
+  String _normalizeHomeTitle(String value) {
+    return value.trim().replaceAll(RegExp(r'\s+'), ' ');
   }
 
   void _replaceLocalMachine(MachineModel machine) {

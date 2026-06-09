@@ -53,7 +53,10 @@ class CommunityPage extends StatelessWidget {
                     currentUser,
                   ),
                 ),
-          body: _CommunityPostList(provider: communityProvider),
+          body: _CommunityPostList(
+            provider: communityProvider,
+            currentUser: currentUser,
+          ),
         );
       },
     );
@@ -83,9 +86,10 @@ class CommunityPage extends StatelessWidget {
 }
 
 class _CommunityPostList extends StatelessWidget {
-  const _CommunityPostList({required this.provider});
+  const _CommunityPostList({required this.provider, required this.currentUser});
 
   final CommunityProvider provider;
+  final UserModel? currentUser;
 
   @override
   Widget build(BuildContext context) {
@@ -113,6 +117,10 @@ class _CommunityPostList extends StatelessWidget {
               (post) => _CommunityPostCard(
                 post: post,
                 commentCount: provider.getCommentCount(post.postId),
+                canDelete: provider.canManagePost(post, currentUser),
+                isDeleteEnabled: !provider.isActionLoading,
+                onDelete: () =>
+                    _confirmDeletePost(context, provider, currentUser, post),
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
@@ -127,6 +135,43 @@ class _CommunityPostList extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _confirmDeletePost(
+  BuildContext context,
+  CommunityProvider provider,
+  UserModel? user,
+  CommunityPostModel post, {
+  bool popAfterDelete = false,
+}) async {
+  if (user == null) return;
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('게시글 삭제'),
+      content: const Text('이 게시글과 댓글을 삭제하시겠습니까?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('취소'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: FilledButton.styleFrom(backgroundColor: redColor),
+          child: const Text('삭제'),
+        ),
+      ],
+    ),
+  );
+  if (confirm != true || !context.mounted) return;
+
+  final message = await provider.deletePost(user: user, post: post);
+  if (!context.mounted) return;
+  final messenger = ScaffoldMessenger.of(context);
+  if (popAfterDelete) {
+    Navigator.of(context).pop();
+  }
+  messenger.showSnackBar(SnackBar(content: Text(message)));
 }
 
 // ---------------------------------------------------------------------------
@@ -381,11 +426,17 @@ class _CommunityPostCard extends StatelessWidget {
   const _CommunityPostCard({
     required this.post,
     required this.commentCount,
+    required this.canDelete,
+    required this.isDeleteEnabled,
+    required this.onDelete,
     required this.onTap,
   });
 
   final CommunityPostModel post;
   final int commentCount;
+  final bool canDelete;
+  final bool isDeleteEnabled;
+  final VoidCallback onDelete;
   final VoidCallback onTap;
 
   @override
@@ -451,6 +502,13 @@ class _CommunityPostCard extends StatelessWidget {
                                 ),
                               ),
                             ),
+                            if (canDelete) ...[
+                              const Spacer(),
+                              _PostDeleteButton(
+                                isEnabled: isDeleteEnabled,
+                                onPressed: onDelete,
+                              ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 10),
@@ -542,6 +600,35 @@ class _CommunityPostCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PostDeleteButton extends StatelessWidget {
+  const _PostDeleteButton({required this.isEnabled, required this.onPressed});
+
+  final bool isEnabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: isEnabled ? onPressed : null,
+      tooltip: '삭제',
+      icon: const Icon(Icons.delete_outline, size: 20),
+      color: redColor,
+      style: IconButton.styleFrom(
+        backgroundColor: surfaceColor,
+        disabledBackgroundColor: surfaceColor,
+        side: const BorderSide(color: borderColor, width: 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+        ),
+        fixedSize: const Size(36, 36),
+        minimumSize: const Size(36, 36),
+        padding: EdgeInsets.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );
   }
@@ -825,56 +912,38 @@ class _DetailMetaRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _AuthorAvatar(name: authorName, size: 34, color: accentColor),
+        const SizedBox(width: 9),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Icon(Icons.person_outline, size: 16, color: accentColor),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      authorName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: borderColor,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        height: 1.15,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ),
-                ],
+              Text(
+                authorName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: borderColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  height: 1.15,
+                  letterSpacing: 0,
+                ),
               ),
               const SizedBox(height: 3),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.access_time_rounded,
-                    size: 15,
-                    color: mutedTextColor,
-                  ),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      formatDateTime(createdAt),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: mutedTextColor,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        height: 1.15,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ),
-                ],
+              Text(
+                formatDateTime(createdAt),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: mutedTextColor,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  height: 1.15,
+                  letterSpacing: 0,
+                ),
               ),
             ],
           ),
@@ -1111,6 +1180,7 @@ class _CommunityPostDetailPageState extends State<_CommunityPostDetailPage> {
                           communityProvider,
                           currentUser,
                           post,
+                          popAfterDelete: true,
                         ),
                 ),
             ],
@@ -1177,41 +1247,6 @@ class _CommunityPostDetailPageState extends State<_CommunityPostDetailPage> {
     if (body.trim().isNotEmpty && message == '댓글을 남겼습니다.') {
       _commentController.clear();
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _confirmDeletePost(
-    BuildContext context,
-    CommunityProvider provider,
-    UserModel? user,
-    CommunityPostModel post,
-  ) async {
-    if (user == null) return;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('게시글 삭제'),
-        content: const Text('이 게시글과 댓글을 삭제하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: redColor),
-            child: const Text('삭제'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !context.mounted) return;
-
-    final message = await provider.deletePost(user: user, post: post);
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));

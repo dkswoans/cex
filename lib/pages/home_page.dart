@@ -40,6 +40,8 @@ class HomePage extends StatelessWidget {
         }
 
         final reservationAlert = provider.getMyReservationAlert();
+        final currentUser = provider.currentUser;
+        final isAdmin = currentUser?.role == 'admin';
 
         return Scaffold(
           backgroundColor: bgColor,
@@ -52,6 +54,7 @@ class HomePage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _Header(
+                      title: provider.homeTitle,
                       onRefresh: () async {
                         await provider.syncFromDatabase();
                         if (!context.mounted) return;
@@ -61,7 +64,11 @@ class HomePage extends StatelessWidget {
                           );
                         }
                       },
+                      onEditTitle: isAdmin
+                          ? () => _showEditTitleDialog(context, provider)
+                          : null,
                       isLoading: provider.isLoading,
+                      isActionLoading: provider.isActionLoading,
                     ),
                     const SizedBox(height: 7),
                     _StatusSummary(
@@ -151,6 +158,23 @@ class HomePage extends StatelessWidget {
         },
       ),
     );
+  }
+
+  Future<void> _showEditTitleDialog(
+    BuildContext context,
+    GymProvider provider,
+  ) async {
+    final title = await showDialog<String>(
+      context: context,
+      builder: (_) => _HomeTitleEditDialog(initialTitle: provider.homeTitle),
+    );
+    if (title == null) return;
+
+    final message = await provider.updateHomeTitle(title);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -242,10 +266,19 @@ class _ReservationAlertPanel extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onRefresh, required this.isLoading});
+  const _Header({
+    required this.title,
+    required this.onRefresh,
+    required this.isLoading,
+    required this.isActionLoading,
+    this.onEditTitle,
+  });
 
+  final String title;
   final Future<void> Function() onRefresh;
   final bool isLoading;
+  final bool isActionLoading;
+  final VoidCallback? onEditTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -281,41 +314,31 @@ class _Header extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'BSSM GYM !!!',
-                    maxLines: 1,
-                    overflow: TextOverflow.clip,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: bgColor,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
-                      shadows: const [
-                        Shadow(
-                          color: Colors.black,
-                          offset: Offset(2, 2),
-                          blurRadius: 0,
-                        ),
-                      ],
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: bgColor,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                  shadows: const [
+                    Shadow(
+                      color: Colors.black,
+                      offset: Offset(2, 2),
+                      blurRadius: 0,
                     ),
-                  ),
-                  const Text(
-                    '운동기구 예약 현황임 아무튼',
-                    maxLines: 1,
-                    overflow: TextOverflow.visible,
-                    style: TextStyle(
-                      color: greenColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
+            if (onEditTitle != null)
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: '홈 제목 수정',
+                onPressed: isActionLoading ? null : onEditTitle,
+              ),
             IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: '새로고침',
@@ -325,6 +348,79 @@ class _Header extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _HomeTitleEditDialog extends StatefulWidget {
+  const _HomeTitleEditDialog({required this.initialTitle});
+
+  final String initialTitle;
+
+  @override
+  State<_HomeTitleEditDialog> createState() => _HomeTitleEditDialogState();
+}
+
+class _HomeTitleEditDialogState extends State<_HomeTitleEditDialog> {
+  late final TextEditingController _titleCtrl;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleCtrl = TextEditingController(text: widget.initialTitle);
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('홈 제목 수정'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _titleCtrl,
+            autofocus: true,
+            maxLength: 40,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(labelText: '홈 제목'),
+            onSubmitted: (_) => _submit(),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              style: const TextStyle(color: redColor, fontSize: 12),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('취소'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('저장')),
+      ],
+    );
+  }
+
+  void _submit() {
+    final title = _titleCtrl.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (title.isEmpty) {
+      setState(() => _error = '제목을 입력하세요.');
+      return;
+    }
+    if (title.length > 40) {
+      setState(() => _error = '제목은 40자까지 입력할 수 있습니다.');
+      return;
+    }
+    Navigator.pop(context, title);
   }
 }
 

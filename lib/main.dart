@@ -18,7 +18,6 @@ Future<void> main() async {
 
 class ApdoApp extends StatelessWidget {
   const ApdoApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
