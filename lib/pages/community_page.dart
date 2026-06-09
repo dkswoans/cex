@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -10,7 +8,6 @@ import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
 import '../utils/time_utils.dart';
 import '../widgets/app_design.dart';
-import '../widgets/wobbly_card.dart';
 
 class CommunityPage extends StatelessWidget {
   const CommunityPage({super.key});
@@ -56,10 +53,7 @@ class CommunityPage extends StatelessWidget {
                     currentUser,
                   ),
                 ),
-          body: _CommunityPostList(
-            provider: communityProvider,
-            currentUser: currentUser,
-          ),
+          body: _CommunityPostList(provider: communityProvider),
         );
       },
     );
@@ -89,10 +83,9 @@ class CommunityPage extends StatelessWidget {
 }
 
 class _CommunityPostList extends StatelessWidget {
-  const _CommunityPostList({required this.provider, required this.currentUser});
+  const _CommunityPostList({required this.provider});
 
   final CommunityProvider provider;
-  final UserModel? currentUser;
 
   @override
   Widget build(BuildContext context) {
@@ -106,23 +99,20 @@ class _CommunityPostList extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: provider.syncFromDatabase,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 96),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
         children: [
-          _sectionLabel('자유게시판'),
+          const _CommunityHeaderBanner(),
+          const SizedBox(height: 14),
           if (posts.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: _tiltedCard(
-                seed: 'community_empty',
-                child: Center(child: _funLabel(emptyText, 'community_empty')),
-              ),
+              child: _CommunityEmptyPanel(text: emptyText),
             )
           else
             ...posts.map(
               (post) => _CommunityPostCard(
                 post: post,
                 commentCount: provider.getCommentCount(post.postId),
-                canDelete: provider.canManagePost(post, currentUser),
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
@@ -131,179 +121,217 @@ class _CommunityPostList extends StatelessWidget {
                     ),
                   );
                 },
-                onDelete: () =>
-                    _confirmDeletePost(context, provider, currentUser, post),
               ),
             ),
         ],
       ),
     );
   }
-
-  Future<void> _confirmDeletePost(
-    BuildContext context,
-    CommunityProvider provider,
-    UserModel? user,
-    CommunityPostModel post,
-  ) async {
-    if (user == null) return;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('게시글 삭제'),
-        content: const Text('이 게시글과 댓글을 삭제하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: redColor),
-            child: const Text('삭제'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !context.mounted) return;
-
-    final message = await provider.deletePost(user: user, post: post);
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
 }
 
-Widget _tiltedCard({
-  required String seed,
-  required Widget child,
-  List<BoxShadow>? shadows,
-  EdgeInsets padding = const EdgeInsets.all(AppSpacing.lg),
-  Color fillColor = surfaceColor,
-  double rotationScale = 0.018,
-}) {
-  final angle =
-      (math.Random(seed.hashCode ^ 0xABCD).nextDouble() - 0.5) * rotationScale;
-  return Transform.rotate(
-    angle: angle,
-    child: WobblyCard(
-      seed: seed,
-      shadows: shadows ?? _cleanShadows(seed),
-      padding: padding,
-      fillColor: fillColor,
-      child: child,
-    ),
-  );
-}
+// ---------------------------------------------------------------------------
+// Design tokens (punk-zine: paper panels + neon accents + sticker shadows)
+// ---------------------------------------------------------------------------
 
-List<BoxShadow> _cleanShadows(String seed) {
-  final rng = math.Random(seed.hashCode);
-  const colors = [blueColor, redColor, greenColor, amberColor];
-  final primaryIndex = rng.nextInt(colors.length);
-  final primary = colors[primaryIndex];
-  final secondary = colors[(primaryIndex + 1 + rng.nextInt(2)) % colors.length];
-  return [
-    BoxShadow(color: primary, offset: const Offset(4, 4), blurRadius: 0),
-    BoxShadow(
-      color: secondary,
-      offset: const Offset(-1.5, -1.5),
-      blurRadius: 0,
-    ),
-  ];
-}
+const _paper = Color(0xFFFFFDF7); // warm near-white for readable text panels
+const _previewInk = Color(0xFF34304D); // soft near-black for body previews
 
-Color _accentColor(String seed) {
-  final rng = math.Random(seed.hashCode);
-  const colors = [redColor, blueColor, greenColor, amberColor];
-  return colors[rng.nextInt(colors.length)];
-}
-
-const _postListTitleStyle = TextStyle(
-  color: textColor,
-  fontSize: 20,
-  fontWeight: FontWeight.w900,
-  height: 1.12,
-);
-
-const _postListMetaStyle = TextStyle(
-  color: mutedTextColor,
-  fontSize: 13,
-  fontWeight: FontWeight.w900,
-  height: 1.12,
-);
-
-const _communityPaperColor = surfaceColor;
+const _communityPaperColor = _paper;
 const _communitySubtleColor = bgColor;
 const _communityInkColor = textColor;
 const _communityMutedColor = mutedTextColor;
 const _communityLineColor = borderColor;
 
-const _postDetailTitleStyle = TextStyle(
-  color: _communityInkColor,
-  fontSize: 23,
+const _cardTitleStyle = TextStyle(
+  color: borderColor,
+  fontSize: 19,
   fontWeight: FontWeight.w900,
-  height: 1.22,
+  height: 1.18,
+  letterSpacing: -0.2,
+);
+
+const _cardPreviewStyle = TextStyle(
+  color: _previewInk,
+  fontSize: 13.5,
+  fontWeight: FontWeight.w600,
+  height: 1.4,
   letterSpacing: 0,
 );
 
+const _postDetailTitleStyle = TextStyle(
+  color: borderColor,
+  fontSize: 24,
+  fontWeight: FontWeight.w900,
+  height: 1.2,
+  letterSpacing: -0.3,
+);
+
 const _postBodyStyle = TextStyle(
-  color: _communityInkColor,
+  color: borderColor,
   fontSize: 16,
-  fontWeight: FontWeight.w700,
-  height: 1.55,
+  fontWeight: FontWeight.w600,
+  height: 1.6,
   letterSpacing: 0,
 );
 
 const _commentBodyStyle = TextStyle(
-  color: _communityInkColor,
+  color: borderColor,
   fontSize: 15,
-  fontWeight: FontWeight.w700,
-  height: 1.45,
+  fontWeight: FontWeight.w600,
+  height: 1.5,
   letterSpacing: 0,
 );
 
-Widget _sectionLabel(String text) {
-  final rng = math.Random(text.hashCode);
-  final angle = (rng.nextDouble() - 0.5) * 0.12;
-  const colors = [textColor, blueColor, redColor, amberColor];
-  final color = colors[rng.nextInt(colors.length)];
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 2, top: 10),
-    child: Transform.rotate(
-      alignment: Alignment.centerLeft,
-      angle: angle,
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 20,
-          fontWeight: FontWeight.w900,
-          shadows: const [
-            Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
-          ],
-        ),
-      ),
-    ),
-  );
+class _CardTone {
+  const _CardTone({required this.hero, required this.shadow});
+
+  final Color hero; // spine, avatar, comment pill
+  final Color shadow; // offset sticker shadow
 }
 
-Widget _funLabel(String text, String seed) {
-  final rng = math.Random(seed.hashCode);
-  final angle = (rng.nextDouble() - 0.5) * 0.08;
-  return Transform.rotate(
-    angle: angle,
-    child: Text(
-      text,
-      textAlign: TextAlign.center,
-      style: const TextStyle(
-        color: textColor,
-        fontSize: 15,
-        fontWeight: FontWeight.w900,
-        height: 1.25,
+const _cardTones = <_CardTone>[
+  _CardTone(hero: redColor, shadow: blueColor),
+  _CardTone(hero: textColor, shadow: amberColor),
+  _CardTone(hero: mutedTextColor, shadow: greenColor),
+  _CardTone(hero: amberColor, shadow: surfaceColor),
+  _CardTone(hero: surfaceColor, shadow: blueColor),
+];
+
+_CardTone _toneFor(String seed) =>
+    _cardTones[seed.hashCode.abs() % _cardTones.length];
+
+/// Black on light fills, white on dark fills — keeps text legible on any tone.
+Color _onColor(Color c) =>
+    c.computeLuminance() > 0.5 ? borderColor : Colors.white;
+
+class _CommunityHeaderBanner extends StatelessWidget {
+  const _CommunityHeaderBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 13, 14, 14),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        border: Border.all(color: borderColor, width: 3),
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        boxShadow: const [
+          BoxShadow(color: blueColor, offset: Offset(4, 4), blurRadius: 0),
+        ],
       ),
-    ),
-  );
+      child: Row(
+        children: [
+          Transform.rotate(
+            angle: -0.06,
+            child: Container(
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: bgColor,
+                border: Border.all(color: borderColor, width: 2.5),
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+              ),
+              child: const Icon(Icons.bolt, color: redColor, size: 26),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  '자유게시판',
+                  style: TextStyle(
+                    color: bgColor,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                    height: 1.05,
+                    letterSpacing: -0.3,
+                    shadows: [
+                      Shadow(
+                        color: borderColor,
+                        offset: Offset(2, 2),
+                        blurRadius: 0,
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  '오늘 헬스장은 어땠나요? 마음껏 떠들어요!',
+                  style: TextStyle(
+                    color: borderColor,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    height: 1.15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommunityEmptyPanel extends StatelessWidget {
+  const _CommunityEmptyPanel({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+      decoration: BoxDecoration(
+        color: _paper,
+        border: Border.all(color: borderColor, width: 2.5),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        boxShadow: const [
+          BoxShadow(color: blueColor, offset: Offset(4, 4), blurRadius: 0),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Transform.rotate(
+            angle: -0.05,
+            child: Container(
+              width: 56,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: redColor,
+                border: Border.all(color: borderColor, width: 2.5),
+                borderRadius: BorderRadius.circular(AppRadii.md),
+              ),
+              child: const Icon(
+                Icons.forum_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: borderColor,
+              fontSize: 14.5,
+              fontWeight: FontWeight.w800,
+              height: 1.35,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _CommunityWriteButton extends StatelessWidget {
@@ -314,51 +342,260 @@ class _CommunityWriteButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: -0.035,
-      child: Container(
-        decoration: BoxDecoration(
-          color: redColor,
-          border: Border.all(color: borderColor, width: 3),
+    return Container(
+      decoration: BoxDecoration(
+        color: redColor,
+        border: Border.all(color: borderColor, width: 2.5),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        boxShadow: const [
+          BoxShadow(color: blueColor, offset: Offset(3, 3), blurRadius: 0),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
           borderRadius: BorderRadius.circular(AppRadii.pill),
-          boxShadow: const [
-            BoxShadow(color: blueColor, offset: Offset(4, 4), blurRadius: 0),
-            BoxShadow(color: amberColor, offset: Offset(-2, -2), blurRadius: 0),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-            onTap: isLoading ? null : onTap,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 17, 12),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.edit, color: bgColor, size: 22),
-                  SizedBox(width: 7),
-                  Text(
-                    '글쓰기',
-                    style: TextStyle(
-                      color: bgColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
-                      shadows: [
-                        Shadow(
-                          color: borderColor,
-                          offset: Offset(2, 2),
-                          blurRadius: 0,
-                        ),
-                      ],
-                    ),
+          onTap: isLoading ? null : onTap,
+          child: const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 18, 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.edit, color: Colors.white, size: 20),
+                SizedBox(width: 7),
+                Text(
+                  '글쓰기',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                    letterSpacing: 0.2,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CommunityPostCard extends StatelessWidget {
+  const _CommunityPostCard({
+    required this.post,
+    required this.commentCount,
+    required this.onTap,
+  });
+
+  final CommunityPostModel post;
+  final int commentCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = _toneFor(post.postId);
+    final preview = post.body.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final isHot = commentCount >= 5;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: _paper,
+        border: Border.all(color: borderColor, width: 3),
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        boxShadow: [
+          BoxShadow(color: tone.shadow, offset: const Offset(4, 4), blurRadius: 0),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 13, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        _AuthorAvatar(
+                          name: post.authorName,
+                          size: 38,
+                          color: tone.hero,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                post.authorName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: borderColor,
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.1,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                formatDateTime(post.createdAt),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: mutedTextColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.1,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _PostMetric(
+                          icon: Icons.chat_bubble_outline,
+                          count: commentCount,
+                          fillColor: tone.hero,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            post.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: _cardTitleStyle,
+                          ),
+                        ),
+                        if (isHot) ...[
+                          const SizedBox(width: 8),
+                          const _HotTag(),
+                        ],
+                      ],
+                    ),
+                    if (preview.isNotEmpty) ...[
+                      const SizedBox(height: 7),
+                      Text(
+                        preview,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: _cardPreviewStyle,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: 10,
+                  decoration: BoxDecoration(
+                    color: tone.hero,
+                    border: const Border(
+                      right: BorderSide(color: borderColor, width: 2.5),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HotTag extends StatelessWidget {
+  const _HotTag();
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.rotate(
+      angle: -0.06,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: redColor,
+          border: Border.all(color: borderColor, width: 1.5),
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.local_fire_department, color: Colors.white, size: 13),
+            SizedBox(width: 3),
+            Text(
+              'HOT',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                height: 1,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PostMetric extends StatelessWidget {
+  const _PostMetric({
+    required this.icon,
+    required this.count,
+    required this.fillColor,
+  });
+
+  final IconData icon;
+  final int count;
+  final Color fillColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = _onColor(fillColor);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: fillColor,
+        border: Border.all(color: borderColor, width: 1.5),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: fg),
+          const SizedBox(width: 4),
+          Text(
+            '$count',
+            style: TextStyle(
+              color: fg,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              height: 1,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -374,51 +611,37 @@ class _CommunityPostArticle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
       decoration: BoxDecoration(
-        color: _communityPaperColor,
-        border: Border.all(color: borderColor, width: 2.5),
-        borderRadius: BorderRadius.circular(AppRadii.sm),
+        color: _paper,
+        border: Border.all(color: borderColor, width: 3),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
         boxShadow: const [
           BoxShadow(color: blueColor, offset: Offset(4, 4), blurRadius: 0),
-          BoxShadow(color: redColor, offset: Offset(-2, -2), blurRadius: 0),
         ],
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _DetailMetaRow(
-            authorName: post.authorName,
-            createdAt: post.createdAt,
-          ),
-          const SizedBox(height: 17),
-          Text(post.title, style: _postDetailTitleStyle),
-          const SizedBox(height: 14),
-          _PostBodyText(text: post.body),
-          const SizedBox(height: 18),
-          const Divider(height: 1, thickness: 1, color: _communityLineColor),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const Icon(
-                Icons.mode_comment_outlined,
-                color: _communityMutedColor,
-                size: 18,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '댓글',
-                style: const TextStyle(
-                  color: _communityMutedColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  height: 1,
-                  letterSpacing: 0,
+          Container(height: 8, color: redColor),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 15, 16, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _DetailMetaRow(
+                  authorName: post.authorName,
+                  createdAt: post.createdAt,
+                  commentCount: commentCount,
                 ),
-              ),
-              const SizedBox(width: 6),
-              _CountPill(count: commentCount),
-            ],
+                const SizedBox(height: 14),
+                Container(height: 2.5, color: borderColor),
+                const SizedBox(height: 16),
+                Text(post.title, style: _postDetailTitleStyle),
+                const SizedBox(height: 12),
+                _PostBodyText(text: post.body),
+              ],
+            ),
           ),
         ],
       ),
@@ -438,18 +661,23 @@ class _PostBodyText extends StatelessWidget {
 }
 
 class _DetailMetaRow extends StatelessWidget {
-  const _DetailMetaRow({required this.authorName, required this.createdAt});
+  const _DetailMetaRow({
+    required this.authorName,
+    required this.createdAt,
+    required this.commentCount,
+  });
 
   final String authorName;
   final DateTime createdAt;
+  final int commentCount;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        _AuthorAvatar(name: authorName, size: 42),
-        const SizedBox(width: 10),
+        _AuthorAvatar(name: authorName, size: 44, color: textColor),
+        const SizedBox(width: 11),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -459,8 +687,8 @@ class _DetailMetaRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: _communityInkColor,
-                  fontSize: 15,
+                  color: borderColor,
+                  fontSize: 16,
                   fontWeight: FontWeight.w900,
                   height: 1.15,
                   letterSpacing: 0,
@@ -472,8 +700,8 @@ class _DetailMetaRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: _communityMutedColor,
-                  fontSize: 12,
+                  color: mutedTextColor,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w700,
                   height: 1.15,
                   letterSpacing: 0,
@@ -482,23 +710,10 @@ class _DetailMetaRow extends StatelessWidget {
             ],
           ),
         ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-          decoration: BoxDecoration(
-            color: _communitySubtleColor,
-            border: Border.all(color: _communityLineColor, width: 1),
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-          ),
-          child: const Text(
-            '자유게시판',
-            style: TextStyle(
-              color: _communityMutedColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              height: 1,
-              letterSpacing: 0,
-            ),
-          ),
+        _PostMetric(
+          icon: Icons.chat_bubble_outline,
+          count: commentCount,
+          fillColor: greenColor,
         ),
       ],
     );
@@ -506,10 +721,15 @@ class _DetailMetaRow extends StatelessWidget {
 }
 
 class _AuthorAvatar extends StatelessWidget {
-  const _AuthorAvatar({required this.name, this.size = 34});
+  const _AuthorAvatar({
+    required this.name,
+    this.size = 34,
+    this.color = textColor,
+  });
 
   final String name;
   final double size;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -520,14 +740,14 @@ class _AuthorAvatar extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: Color.lerp(blueColor, _communityPaperColor, 0.68),
+        color: color,
         shape: BoxShape.circle,
         border: Border.all(color: borderColor, width: 2),
       ),
       child: Text(
         initial,
         style: TextStyle(
-          color: _communityInkColor,
+          color: _onColor(color),
           fontSize: size * 0.42,
           fontWeight: FontWeight.w900,
           height: 1,
@@ -555,13 +775,13 @@ class _CommentSectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(2, 4, 2, 10),
       child: Row(
         children: [
-          const Icon(Icons.forum_outlined, color: textColor, size: 21),
+          const Icon(Icons.forum_outlined, color: borderColor, size: 20),
           const SizedBox(width: 7),
           const Text(
             '댓글',
             style: TextStyle(
-              color: textColor,
-              fontSize: 18,
+              color: borderColor,
+              fontSize: 17,
               fontWeight: FontWeight.w900,
               height: 1,
               letterSpacing: 0,
@@ -588,7 +808,7 @@ class _CountPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       constraints: const BoxConstraints(minWidth: 28),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: greenColor,
@@ -618,23 +838,30 @@ class _CommentEmptyPanel extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
       decoration: BoxDecoration(
-        color: _communityPaperColor,
+        color: _paper,
         border: Border.all(color: borderColor, width: 2),
-        borderRadius: BorderRadius.circular(AppRadii.sm),
+        borderRadius: BorderRadius.circular(AppRadii.md),
         boxShadow: const [
           BoxShadow(color: blueColor, offset: Offset(3, 3), blurRadius: 0),
         ],
       ),
-      child: const Text(
-        '아직 댓글이 없습니다.',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: _communityMutedColor,
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-          height: 1.3,
-          letterSpacing: 0,
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          Icon(Icons.mode_comment_outlined, color: mutedTextColor, size: 26),
+          SizedBox(height: 8),
+          Text(
+            '아직 댓글이 없어요!  첫 댓글을 남겨보세요',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: _communityMutedColor,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w800,
+              height: 1.3,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -645,151 +872,7 @@ class _MissingPostPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _tiltedCard(
-      seed: 'missing_post',
-      child: Center(child: _funLabel('게시글을 찾을 수 없습니다.', 'missing_post')),
-    );
-  }
-}
-
-class _CommunityPostCard extends StatelessWidget {
-  const _CommunityPostCard({
-    required this.post,
-    required this.commentCount,
-    required this.canDelete,
-    required this.onTap,
-    required this.onDelete,
-  });
-
-  final CommunityPostModel post;
-  final int commentCount;
-  final bool canDelete;
-  final VoidCallback onTap;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = _accentColor(post.postId);
-    final rng = math.Random(post.postId.hashCode);
-    final angle = (rng.nextDouble() - 0.5) * 0.014;
-    final radius = 7.0 + rng.nextInt(4);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Transform.rotate(
-        angle: angle,
-        child: Container(
-          width: double.infinity,
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
-          decoration: BoxDecoration(
-            color: Color.lerp(surfaceColor, accent, 0.08),
-            border: Border.all(color: borderColor, width: 3),
-            borderRadius: BorderRadius.circular(radius),
-            boxShadow: [
-              BoxShadow(
-                color: accent,
-                offset: const Offset(3, 3),
-                blurRadius: 0,
-              ),
-            ],
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 7,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: accent,
-                  border: Border.all(color: borderColor, width: 1.5),
-                  borderRadius: BorderRadius.circular(AppRadii.pill),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(child: _PostListText(post: post)),
-              const SizedBox(width: 8),
-              _PostCountBadge(count: commentCount, color: accent),
-              if (canDelete)
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.delete_outline),
-                  color: redColor,
-                  tooltip: '삭제',
-                  onPressed: onDelete,
-                ),
-              const Icon(Icons.chevron_right, color: textColor, size: 23),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PostListText extends StatelessWidget {
-  const _PostListText({required this.post});
-
-  final CommunityPostModel post;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          post.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: _postListTitleStyle,
-        ),
-        const SizedBox(height: 5),
-        Text(
-          '${post.authorName}  ·  ${formatDateTime(post.createdAt)}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: _postListMetaStyle,
-        ),
-      ],
-    );
-  }
-}
-
-class _PostCountBadge extends StatelessWidget {
-  const _PostCountBadge({required this.count, required this.color});
-
-  final int count;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minWidth: 34),
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
-      decoration: BoxDecoration(
-        color: bgColor,
-        border: Border.all(color: borderColor, width: 2.5),
-        borderRadius: BorderRadius.circular(AppRadii.pill),
-        boxShadow: [BoxShadow(color: color, offset: const Offset(2, 2))],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.chat_bubble_outline, size: 14, color: textColor),
-          const SizedBox(width: 4),
-          Text(
-            '$count',
-            style: const TextStyle(
-              color: textColor,
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              height: 1,
-            ),
-          ),
-        ],
-      ),
-    );
+    return const _CommunityEmptyPanel(text: '게시글을 찾을 수 없습니다.');
   }
 }
 
@@ -805,10 +888,18 @@ class _CommunityPostDetailPage extends StatefulWidget {
 
 class _CommunityPostDetailPageState extends State<_CommunityPostDetailPage> {
   final _commentController = TextEditingController();
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController(keepScrollOffset: false);
+  }
 
   @override
   void dispose() {
     _commentController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -865,6 +956,7 @@ class _CommunityPostDetailPageState extends State<_CommunityPostDetailPage> {
           body: RefreshIndicator(
             onRefresh: communityProvider.syncFromDatabase,
             child: ListView(
+              controller: _scrollController,
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
               children: [
@@ -872,7 +964,7 @@ class _CommunityPostDetailPageState extends State<_CommunityPostDetailPage> {
                   post: post,
                   commentCount: comments.length,
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
                 _CommentSectionHeader(count: comments.length),
                 if (comments.isEmpty)
                   const _CommentEmptyPanel()
@@ -1003,16 +1095,18 @@ class _CommentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tone = _toneFor(comment.authorName);
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(13, 12, 10, 13),
+      padding: const EdgeInsets.fromLTRB(12, 11, 10, 12),
       decoration: BoxDecoration(
-        color: _communityPaperColor,
+        color: _paper,
         border: Border.all(color: borderColor, width: 2),
-        borderRadius: BorderRadius.circular(AppRadii.sm),
+        borderRadius: BorderRadius.circular(AppRadii.md),
         boxShadow: const [
-          BoxShadow(color: blueColor, offset: Offset(3, 3), blurRadius: 0),
+          BoxShadow(color: borderColor, offset: Offset(2, 2), blurRadius: 0),
         ],
       ),
       child: Column(
@@ -1021,8 +1115,12 @@ class _CommentTile extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _AuthorAvatar(name: comment.authorName),
-              const SizedBox(width: 10),
+              _AuthorAvatar(
+                name: comment.authorName,
+                size: 32,
+                color: tone.hero,
+              ),
+              const SizedBox(width: 9),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1032,7 +1130,7 @@ class _CommentTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: _communityInkColor,
+                        color: borderColor,
                         fontSize: 14,
                         fontWeight: FontWeight.w900,
                         height: 1.15,
@@ -1045,7 +1143,7 @@ class _CommentTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: _communityMutedColor,
+                        color: mutedTextColor,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         height: 1.15,
@@ -1065,11 +1163,8 @@ class _CommentTile extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 9),
-          Padding(
-            padding: const EdgeInsets.only(left: 44),
-            child: Text(comment.body, style: _commentBodyStyle),
-          ),
+          const SizedBox(height: 10),
+          Text(comment.body, style: _commentBodyStyle),
         ],
       ),
     );
