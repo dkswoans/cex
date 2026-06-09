@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../utils/status_utils.dart';
 import 'app_design.dart';
@@ -35,9 +36,15 @@ class ReservationTimeDialog extends StatefulWidget {
 }
 
 class _ReservationTimeDialogState extends State<ReservationTimeDialog> {
+  static const int _maxInputMinutes = 15;
+
   late final TextEditingController _minutesController;
   late TimeOfDay _startTime;
   String? _errorText;
+
+  int get _effectiveMaxMinutes => widget.maxMinutes < _maxInputMinutes
+      ? widget.maxMinutes
+      : _maxInputMinutes;
 
   @override
   void initState() {
@@ -45,7 +52,7 @@ class _ReservationTimeDialogState extends State<ReservationTimeDialog> {
     _startTime = _initialStartTime();
     _minutesController = TextEditingController(
       text: (widget.initialMinutes ?? widget.maxMinutes)
-          .clamp(1, widget.maxMinutes)
+          .clamp(1, _effectiveMaxMinutes)
           .toString(),
     );
   }
@@ -63,7 +70,7 @@ class _ReservationTimeDialogState extends State<ReservationTimeDialog> {
       10,
       15,
       30,
-    ].where((m) => m <= widget.maxMinutes).toList();
+    ].where((m) => m <= _effectiveMaxMinutes).toList();
 
     return AlertDialog(
       title: Text(widget.title),
@@ -154,9 +161,13 @@ class _ReservationTimeDialogState extends State<ReservationTimeDialog> {
             TextField(
               controller: _minutesController,
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                _MinuteRangeInputFormatter(_effectiveMaxMinutes),
+              ],
               decoration: InputDecoration(
                 labelText: '직접 입력',
-                helperText: '1~${widget.maxMinutes}분',
+                helperText: '1~$_effectiveMaxMinutes분',
                 errorText: _errorText,
               ),
               onChanged: (_) => setState(() => _errorText = null),
@@ -312,9 +323,9 @@ class _ReservationTimeDialogState extends State<ReservationTimeDialog> {
 
   int? _readMinutes() {
     final minutes = int.tryParse(_minutesController.text.trim());
-    if (minutes == null || minutes < 1 || minutes > widget.maxMinutes) {
+    if (minutes == null || minutes < 1 || minutes > _effectiveMaxMinutes) {
       setState(() {
-        _errorText = '이용 시간은 1~${widget.maxMinutes}분으로 입력하세요.';
+        _errorText = '이용 시간은 1~$_effectiveMaxMinutes분으로 입력하세요.';
       });
       return null;
     }
@@ -355,5 +366,25 @@ class _ReservationTimeDialogState extends State<ReservationTimeDialog> {
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+}
+
+class _MinuteRangeInputFormatter extends TextInputFormatter {
+  const _MinuteRangeInputFormatter(this.max);
+
+  final int max;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text;
+    if (text.isEmpty) return newValue;
+
+    final value = int.tryParse(text);
+    if (value == null || value > max) return oldValue;
+
+    return newValue;
   }
 }

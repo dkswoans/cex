@@ -1342,6 +1342,16 @@ class GymProvider extends ChangeNotifier {
     if (code == '23514' && message.contains('reservations_time_window_check')) {
       return '서버 예약 시간 제한 제약에 걸렸습니다. Supabase SQL 제약을 업데이트해야 합니다.';
     }
+    if (code == '23514' &&
+        (message.contains('reservation_conflict_user_overlap') ||
+            message.contains('reservations_no_user_overlap'))) {
+      return '이미 같은 시간대에 예약한 기구가 있습니다.';
+    }
+    if (code == '23514' &&
+        (message.contains('reservation_conflict_machine_capacity') ||
+            message.contains('reservations_machine_capacity'))) {
+      return '해당 시간대에 예약 가능한 자리가 없습니다.';
+    }
     if (code == '23505') {
       return '이미 같은 예약 데이터가 저장되어 있습니다.';
     }
