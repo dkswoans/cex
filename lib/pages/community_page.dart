@@ -133,8 +133,7 @@ class _CommunityPostList extends StatelessWidget {
 // Design tokens (punk-zine: paper panels + neon accents + sticker shadows)
 // ---------------------------------------------------------------------------
 
-const _paper = Color(0xFFFFFDF7); // warm near-white for readable text panels
-const _previewInk = Color(0xFF34304D); // soft near-black for body previews
+const _paper = Color(0xFFFF67C7); // neon pink panel base
 
 const _communityPaperColor = _paper;
 const _communitySubtleColor = bgColor;
@@ -148,14 +147,6 @@ const _cardTitleStyle = TextStyle(
   fontWeight: FontWeight.w900,
   height: 1.18,
   letterSpacing: -0.2,
-);
-
-const _cardPreviewStyle = TextStyle(
-  color: _previewInk,
-  fontSize: 13.5,
-  fontWeight: FontWeight.w600,
-  height: 1.4,
-  letterSpacing: 0,
 );
 
 const _postDetailTitleStyle = TextStyle(
@@ -191,10 +182,10 @@ class _CardTone {
 
 const _cardTones = <_CardTone>[
   _CardTone(hero: redColor, shadow: blueColor),
-  _CardTone(hero: textColor, shadow: amberColor),
-  _CardTone(hero: mutedTextColor, shadow: greenColor),
-  _CardTone(hero: amberColor, shadow: surfaceColor),
-  _CardTone(hero: surfaceColor, shadow: blueColor),
+  _CardTone(hero: textColor, shadow: greenColor),
+  _CardTone(hero: greenColor, shadow: redColor),
+  _CardTone(hero: amberColor, shadow: mutedTextColor),
+  _CardTone(hero: blueColor, shadow: borderColor),
 ];
 
 _CardTone _toneFor(String seed) =>
@@ -396,7 +387,6 @@ class _CommunityPostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tone = _toneFor(post.postId);
-    final preview = post.body.trim().replaceAll(RegExp(r'\s+'), ' ');
     final isHot = commentCount >= 5;
 
     return Container(
@@ -407,7 +397,11 @@ class _CommunityPostCard extends StatelessWidget {
         border: Border.all(color: borderColor, width: 3),
         borderRadius: BorderRadius.circular(AppRadii.md),
         boxShadow: [
-          BoxShadow(color: tone.shadow, offset: const Offset(4, 4), blurRadius: 0),
+          BoxShadow(
+            color: tone.shadow,
+            offset: const Offset(4, 4),
+            blurRadius: 0,
+          ),
         ],
       ),
       clipBehavior: Clip.antiAlias,
@@ -418,60 +412,34 @@ class _CommunityPostCard extends StatelessWidget {
           child: Stack(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(22, 13, 14, 14),
+                padding: const EdgeInsets.fromLTRB(22, 14, 14, 13),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
                       children: [
-                        _AuthorAvatar(
-                          name: post.authorName,
-                          size: 38,
-                          color: tone.hero,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                post.authorName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: borderColor,
-                                  fontSize: 14.5,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1.1,
-                                  letterSpacing: 0,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                formatDateTime(post.createdAt),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: mutedTextColor,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.1,
-                                  letterSpacing: 0,
-                                ),
-                              ),
-                            ],
+                        Container(
+                          width: 34,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: borderColor,
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        _PostMetric(
-                          icon: Icons.chat_bubble_outline,
-                          count: commentCount,
-                          fillColor: tone.hero,
+                        const SizedBox(width: 5),
+                        Container(
+                          width: 16,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: tone.hero,
+                            border: Border.all(color: borderColor, width: 1),
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -489,15 +457,55 @@ class _CommunityPostCard extends StatelessWidget {
                         ],
                       ],
                     ),
-                    if (preview.isNotEmpty) ...[
-                      const SizedBox(height: 7),
-                      Text(
-                        preview,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: _cardPreviewStyle,
-                      ),
-                    ],
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _AuthorAvatar(
+                          name: post.authorName,
+                          size: 30,
+                          color: tone.hero,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                post.authorName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: borderColor,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.1,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                formatDateTime(post.createdAt),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: mutedTextColor,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.1,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _PostMetric(
+                          icon: Icons.chat_bubble_outline,
+                          count: commentCount,
+                          fillColor: tone.hero,
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
