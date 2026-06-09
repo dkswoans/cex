@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../models/machine_model.dart';
 import '../models/reservation_model.dart';
 import '../providers/gym_provider.dart';
+import '../utils/machine_display_names.dart';
 import '../utils/status_utils.dart';
 import '../utils/time_utils.dart';
 import '../widgets/app_design.dart';
@@ -65,6 +66,7 @@ class MachineDetailPage extends StatelessWidget {
         final maxUseMinutes = provider.getMaxUseMinutesForMachine(machineId);
         final maxReservationMinutes = provider
             .getMaxReservationMinutesForMachine(machineId);
+        final displayName = machine.detailDisplayName;
         final activeUserText = activeReservations.isEmpty
             ? machine.currentUserName ?? '-'
             : '${activeReservations.map((reservation) => reservation.userName).join(', ')} (${activeReservations.length}/$capacity)';
@@ -80,7 +82,7 @@ class MachineDetailPage extends StatelessWidget {
 
         return Scaffold(
           backgroundColor: bgColor,
-          appBar: AppBar(title: Text(machine.name)),
+          appBar: AppBar(title: Text(displayName)),
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -104,7 +106,7 @@ class MachineDetailPage extends StatelessWidget {
                               children: [
                                 _MachineTitleBanner(
                                   machineId: machineId,
-                                  name: machine.name,
+                                  name: displayName,
                                 ),
                                 if (machine.description != null) ...[
                                   const SizedBox(height: 6),

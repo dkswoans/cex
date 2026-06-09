@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/machine_model.dart';
+import '../utils/machine_display_names.dart';
 import '../utils/status_utils.dart';
 import 'app_design.dart';
 
@@ -68,7 +69,7 @@ class MachineMarker extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        machine.shortName,
+                        machine.homeMapLabel,
                         maxLines: 1,
                         style: const TextStyle(
                           color: textColor,

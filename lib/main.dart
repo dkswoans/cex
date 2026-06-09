@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'pages/login_page.dart';
+import 'providers/community_provider.dart';
 import 'providers/gym_provider.dart';
 import 'services/reservation_notification_service.dart';
 import 'services/supabase_config.dart';
@@ -20,8 +21,11 @@ class ApdoApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => GymProvider(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => GymProvider()),
+        ChangeNotifierProvider(create: (_) => CommunityProvider()),
+      ],
       child: MaterialApp(
         title: '압도정진올라잇삼창돌격',
         debugShowCheckedModeBanner: false,

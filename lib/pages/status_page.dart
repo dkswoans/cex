@@ -221,6 +221,14 @@ class _GymStatusSnapshot {
     return remaining < 0 ? 0 : remaining;
   }
 
+  int usedUnits(MachineModel machine) {
+    if (machine.status == MachineStatus.repair) return 0;
+    final capacity = provider.getMachineCapacity(machine.machineId);
+    final active = provider.getActiveCount(machine.machineId);
+    if (active < 0) return 0;
+    return active > capacity ? capacity : active;
+  }
+
   static int _totalUnits(GymProvider provider) {
     return provider.machines
         .where(
@@ -2011,9 +2019,9 @@ class _CardioCapacityRow extends StatelessWidget {
                   title: machine.name,
                   subtitle: machine.status == MachineStatus.repair
                       ? '점검 중'
-                      : '남은 자리 ${snapshot.remainingUnits(machine)}개',
+                      : '${snapshot.usedUnits(machine)}자리 사용 중',
                   trailing:
-                      '${snapshot.remainingUnits(machine)}/${snapshot.provider.getMachineCapacity(machine.machineId)}',
+                      '${snapshot.usedUnits(machine)}/${snapshot.provider.getMachineCapacity(machine.machineId)}',
                   color: machine.status == MachineStatus.repair
                       ? const Color(0xFF777777)
                       : greenColor,

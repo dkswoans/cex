@@ -7,6 +7,7 @@ import '../providers/gym_provider.dart';
 import '../utils/status_utils.dart';
 import '../utils/time_utils.dart';
 import 'admin_page.dart';
+import 'community_page.dart';
 import 'home_page.dart';
 import 'my_page.dart';
 import 'status_page.dart';
@@ -24,8 +25,19 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   GymProvider? _provider;
   final Set<String> _shownReservationAlertKeys = {};
 
-  static const _pagesAdmin = [HomePage(), StatusPage(), MyPage(), AdminPage()];
-  static const _pagesUser = [HomePage(), StatusPage(), MyPage()];
+  static const _pagesAdmin = [
+    HomePage(),
+    StatusPage(),
+    CommunityPage(),
+    MyPage(),
+    AdminPage(),
+  ];
+  static const _pagesUser = [
+    HomePage(),
+    StatusPage(),
+    CommunityPage(),
+    MyPage(),
+  ];
 
   @override
   void initState() {
@@ -102,6 +114,11 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
               label: '현황',
             ),
             const NavigationDestination(
+              icon: Icon(Icons.forum_outlined, color: blueColor),
+              selectedIcon: Icon(Icons.forum, color: textColor),
+              label: '커뮤니티',
+            ),
+            const NavigationDestination(
               icon: Icon(Icons.person_outline, color: blueColor),
               selectedIcon: Icon(Icons.person, color: textColor),
               label: '마이페이지',
@@ -149,7 +166,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             textColor: greenColor,
             onPressed: () {
               if (mounted) {
-                setState(() => _selectedIndex = 2);
+                setState(() => _selectedIndex = 3);
               }
             },
           ),
