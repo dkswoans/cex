@@ -54,28 +54,31 @@ class ReservationCard extends StatelessWidget {
               reservation.reservedEndAt,
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              if (onEdit != null) ...[
-                Expanded(
-                  child: FilledButton(
-                    onPressed: onEdit,
-                    style: FilledButton.styleFrom(backgroundColor: blueColor),
-                    child: const Text('예약 수정'),
+          if (onEdit != null || onCancel != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                if (onEdit != null) ...[
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: onEdit,
+                      style: FilledButton.styleFrom(backgroundColor: blueColor),
+                      child: const Text('예약 수정'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
+                  const SizedBox(width: 8),
+                ],
+                if (onCancel != null)
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: onCancel,
+                      style: FilledButton.styleFrom(backgroundColor: redColor),
+                      child: const Text('예약 취소'),
+                    ),
+                  ),
               ],
-              Expanded(
-                child: FilledButton(
-                  onPressed: onCancel,
-                  style: FilledButton.styleFrom(backgroundColor: redColor),
-                  child: const Text('예약 취소'),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );

@@ -79,10 +79,90 @@ class MachineDetailPage extends StatelessWidget {
             machine.status != MachineStatus.repair &&
             !isCurrentUserUsing &&
             (variants.isNotEmpty || myReservation == null);
+        final isActionDisabled = provider.isActionLoading || provider.isLoading;
+        final actionButtons = _ActionButtons(
+          showStart: !isCurrentUserUsing,
+          canReserve: canReserve,
+          canCancel: myReservation?.status == ReservationStatus.waiting,
+          canFinish: isCurrentUserUsing,
+          isLoading: isActionDisabled,
+          onStart: () async {
+            if (!canStart) {
+              _showMessage(context, '현재 사용 가능한 자리가 없습니다.');
+              return;
+            }
+            final variant = variants.isEmpty
+                ? null
+                : await _askVariant(
+                    context,
+                    title: machineId == 'dumbbell' ? '덤벨 무게 선택' : '바벨 무게 선택',
+                    variants: variants,
+                  );
+            if (variants.isNotEmpty && variant == null) return;
+            if (!context.mounted) return;
+            final minutes = await _askMinutes(
+              context,
+              title: '사용 시간',
+              maxMinutes: maxUseMinutes,
+              initialMinutes: maxUseMinutes,
+              helperText: '1분부터 $maxUseMinutes분까지 사용할 수 있습니다.',
+              confirmLabel: '사용하기',
+            );
+            if (minutes == null) return;
+            final message = await provider.startUsingMachine(
+              machineId,
+              minutes: minutes,
+              variantLabel: variant,
+            );
+            if (!context.mounted) return;
+            _showMessage(context, message);
+          },
+          onReserve: () async {
+            final variant = variants.isEmpty
+                ? null
+                : await _askVariant(
+                    context,
+                    title: machineId == 'dumbbell' ? '덤벨 무게 선택' : '바벨 무게 선택',
+                    variants: variants,
+                  );
+            if (variants.isNotEmpty && variant == null) return;
+            if (!context.mounted) return;
+            final request = await _askReservation(
+              context,
+              maxMinutes: maxReservationMinutes,
+              findEarliestStartAt: (minutes) =>
+                  provider.getEarliestReservationStartAt(
+                    machineId,
+                    minutes: minutes,
+                    variantLabel: variant,
+                  ),
+            );
+            if (request == null) return;
+            final message = await provider.reserveMachine(
+              machineId,
+              minutes: request.minutes,
+              startAt: request.startAt,
+              variantLabel: variant,
+            );
+            if (!context.mounted) return;
+            _showMessage(context, message);
+          },
+          onCancel: myReservation?.status != ReservationStatus.waiting
+              ? null
+              : () => _cancelWithConfirm(
+                  context,
+                  provider,
+                  myReservation!.reservationId,
+                ),
+          onFinish: () => _finishWithConfirm(context, provider),
+        );
 
         return Scaffold(
           backgroundColor: bgColor,
           appBar: AppBar(title: Text(displayName)),
+          bottomNavigationBar: machine.status == MachineStatus.repair
+              ? null
+              : _PinnedActionBar(child: actionButtons),
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -358,88 +438,7 @@ class MachineDetailPage extends StatelessWidget {
                   ),
               const SizedBox(height: 16),
               if (machine.status == MachineStatus.repair)
-                const AppEmptyPanel(text: '점검 중인 기구입니다.')
-              else
-                _ActionButtons(
-                  showStart: !isCurrentUserUsing,
-                  canReserve: canReserve,
-                  canCancel: myReservation != null,
-                  canFinish: isCurrentUserUsing,
-                  isLoading: provider.isActionLoading || provider.isLoading,
-                  onStart: () async {
-                    if (!canStart) {
-                      _showMessage(context, '현재 사용 가능한 자리가 없습니다.');
-                      return;
-                    }
-                    final variant = variants.isEmpty
-                        ? null
-                        : await _askVariant(
-                            context,
-                            title: machineId == 'dumbbell'
-                                ? '덤벨 무게 선택'
-                                : '바벨 무게 선택',
-                            variants: variants,
-                          );
-                    if (variants.isNotEmpty && variant == null) return;
-                    if (!context.mounted) return;
-                    final minutes = await _askMinutes(
-                      context,
-                      title: '사용 시간',
-                      maxMinutes: maxUseMinutes,
-                      initialMinutes: maxUseMinutes,
-                      helperText: '1분부터 $maxUseMinutes분까지 사용할 수 있습니다.',
-                      confirmLabel: '사용하기',
-                    );
-                    if (minutes == null) return;
-                    final message = await provider.startUsingMachine(
-                      machineId,
-                      minutes: minutes,
-                      variantLabel: variant,
-                    );
-                    if (!context.mounted) return;
-                    _showMessage(context, message);
-                  },
-                  onReserve: () async {
-                    final variant = variants.isEmpty
-                        ? null
-                        : await _askVariant(
-                            context,
-                            title: machineId == 'dumbbell'
-                                ? '덤벨 무게 선택'
-                                : '바벨 무게 선택',
-                            variants: variants,
-                          );
-                    if (variants.isNotEmpty && variant == null) return;
-                    if (!context.mounted) return;
-                    final request = await _askReservation(
-                      context,
-                      maxMinutes: maxReservationMinutes,
-                      findEarliestStartAt: (minutes) =>
-                          provider.getEarliestReservationStartAt(
-                            machineId,
-                            minutes: minutes,
-                            variantLabel: variant,
-                          ),
-                    );
-                    if (request == null) return;
-                    final message = await provider.reserveMachine(
-                      machineId,
-                      minutes: request.minutes,
-                      startAt: request.startAt,
-                      variantLabel: variant,
-                    );
-                    if (!context.mounted) return;
-                    _showMessage(context, message);
-                  },
-                  onCancel: myReservation == null
-                      ? null
-                      : () => _cancelWithConfirm(
-                          context,
-                          provider,
-                          myReservation.reservationId,
-                        ),
-                  onFinish: () => _finishWithConfirm(context, provider),
-                ),
+                const AppEmptyPanel(text: '점검 중인 기구입니다.'),
             ],
           ),
         );
@@ -1491,6 +1490,31 @@ class _MinutesDialogState extends State<_MinutesDialog> {
 
     FocusScope.of(context).unfocus();
     Navigator.of(context).pop(minutes);
+  }
+}
+
+class _PinnedActionBar extends StatelessWidget {
+  const _PinnedActionBar({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        decoration: const BoxDecoration(
+          color: surfaceColor,
+          border: Border(top: BorderSide(color: borderColor, width: 4)),
+          boxShadow: [
+            BoxShadow(color: blueColor, offset: Offset(0, -4), blurRadius: 0),
+          ],
+        ),
+        child: child,
+      ),
+    );
   }
 }
 

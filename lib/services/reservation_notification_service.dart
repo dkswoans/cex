@@ -29,6 +29,7 @@ class ReservationNotificationService {
   bool _initialized = false;
   bool _permissionsRequested = false;
   bool _exactAlarmsAllowed = true;
+  final Set<String> _shownImmediateReadyKeys = {};
 
   Future<void> initialize() async {
     if (_initialized || kIsWeb || !_isSupportedPlatform) return;
@@ -89,6 +90,14 @@ class ReservationNotificationService {
     await _requestPermissions();
 
     final currentTime = now ?? DateTime.now();
+    final liveImmediateReadyKeys = activeReservations
+        .map((reservation) => _immediateReadyKey(userId, reservation))
+        .toSet();
+    _shownImmediateReadyKeys.removeWhere(
+      (key) =>
+          key.startsWith('$userId:') && !liveImmediateReadyKeys.contains(key),
+    );
+
     for (final reservation in activeReservations) {
       await _scheduleReservationNotifications(
         userId: userId,
@@ -150,7 +159,14 @@ class ReservationNotificationService {
       );
     }
 
-    if (now.isBefore(startAt)) {
+    if (reservation.status == ReservationStatus.active &&
+        !isClaimed &&
+        !now.isBefore(startAt)) {
+      await _showImmediateReadyNotification(
+        userId: userId,
+        reservation: reservation,
+      );
+    } else if (now.isBefore(startAt)) {
       await _scheduleNotification(
         userId: userId,
         reservation: reservation,
@@ -190,31 +206,13 @@ class ReservationNotificationService {
     required String body,
   }) async {
     final id = _notificationId(reservation.reservationId, kind);
-    final payload =
-        '$_payloadPrefix:$userId:${reservation.reservationId}:${kind.name}';
-    final scheduledDate = tz.TZDateTime.from(scheduledAt, tz.local);
-    final details = NotificationDetails(
-      android: AndroidNotificationDetails(
-        _channelId,
-        _channelName,
-        channelDescription: _channelDescription,
-        icon: _notificationIcon,
-        importance: Importance.max,
-        priority: Priority.high,
-        category: AndroidNotificationCategory.reminder,
-        visibility: NotificationVisibility.public,
-      ),
-      iOS: const DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      ),
-      macOS: const DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      ),
+    final payload = _notificationPayload(
+      userId: userId,
+      reservation: reservation,
+      kind: kind,
     );
+    final scheduledDate = tz.TZDateTime.from(scheduledAt, tz.local);
+    final details = _notificationDetails();
 
     try {
       await _notifications.zonedSchedule(
@@ -249,6 +247,74 @@ class ReservationNotificationService {
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       );
     }
+  }
+
+  Future<void> _showImmediateReadyNotification({
+    required String userId,
+    required ReservationModel reservation,
+  }) async {
+    final key = _immediateReadyKey(userId, reservation);
+    if (_shownImmediateReadyKeys.contains(key)) return;
+
+    final kind = _ReservationNotificationKind.ready;
+    final id = _notificationId(reservation.reservationId, kind);
+    final payload = _notificationPayload(
+      userId: userId,
+      reservation: reservation,
+      kind: kind,
+    );
+
+    try {
+      await _notifications.show(
+        id: id,
+        title: '예약 입장 가능',
+        body: '${reservation.machineName} 사용 시간이 시작됐습니다.',
+        notificationDetails: _notificationDetails(),
+        payload: payload,
+      );
+      _shownImmediateReadyKeys.add(key);
+    } catch (error) {
+      debugPrint(
+        '[ReservationNotificationService] immediate ready error: $error',
+      );
+    }
+  }
+
+  NotificationDetails _notificationDetails() {
+    return NotificationDetails(
+      android: AndroidNotificationDetails(
+        _channelId,
+        _channelName,
+        channelDescription: _channelDescription,
+        icon: _notificationIcon,
+        importance: Importance.max,
+        priority: Priority.high,
+        category: AndroidNotificationCategory.reminder,
+        visibility: NotificationVisibility.public,
+      ),
+      iOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+      macOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    );
+  }
+
+  String _notificationPayload({
+    required String userId,
+    required ReservationModel reservation,
+    required _ReservationNotificationKind kind,
+  }) {
+    return '$_payloadPrefix:$userId:${reservation.reservationId}:${kind.name}';
+  }
+
+  String _immediateReadyKey(String userId, ReservationModel reservation) {
+    return '$userId:${reservation.reservationId}:ready';
   }
 
   Future<void> _cancelPendingUserReservationNotifications(String userId) async {

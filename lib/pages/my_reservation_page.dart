@@ -187,7 +187,8 @@ class _ReservationTab extends StatelessWidget {
               reservation.machineId,
               reservation.userId,
             ),
-            onCancel: isLoading
+            onCancel:
+                isLoading || reservation.status != ReservationStatus.waiting
                 ? null
                 : () => onCancel(reservation.reservationId),
             onEdit: isLoading || reservation.status != ReservationStatus.waiting

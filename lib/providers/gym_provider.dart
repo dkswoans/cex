@@ -398,6 +398,54 @@ class GymProvider extends ChangeNotifier {
         );
   }
 
+  bool _isUserUsingAnyMachine(
+    String userId, {
+    String? excludeReservationId,
+    String? excludeDirectMachineId,
+    String? excludeDirectUsageUserId,
+  }) {
+    final hasActiveReservation = reservations.any(
+      (reservation) =>
+          reservation.userId == userId &&
+          reservation.reservationId != excludeReservationId &&
+          reservation.status == ReservationStatus.active,
+    );
+    if (hasActiveReservation) return true;
+
+    return machines.any(
+      (machine) => _splitMultiValue(machine.currentUserId).any((value) {
+        if (_baseUserId(value) != userId) return false;
+        return machine.machineId != excludeDirectMachineId ||
+            value != excludeDirectUsageUserId;
+      }),
+    );
+  }
+
+  ReservationModel? _firstOverlappingUserReservation(
+    String userId, {
+    required DateTime startAt,
+    required DateTime endAt,
+    String? excludeReservationId,
+  }) {
+    final result =
+        reservations
+            .where(
+              (reservation) =>
+                  reservation.userId == userId &&
+                  reservation.reservationId != excludeReservationId &&
+                  (reservation.status == ReservationStatus.waiting ||
+                      reservation.status == ReservationStatus.active) &&
+                  _reservationOverlaps(
+                    reservation,
+                    startAt: startAt,
+                    endAt: endAt,
+                  ),
+            )
+            .toList()
+          ..sort(_compareReservationsByStartTime);
+    return result.firstOrNull;
+  }
+
   List<ReservationModel> getActiveReservationsByMachine(String machineId) {
     final result =
         reservations
@@ -867,6 +915,17 @@ class GymProvider extends ChangeNotifier {
     }
 
     final now = DateTime.now();
+    final requestedUsageUserId = _usageUserId(user.userId, variantLabel);
+    final hasConflictingUse = _isUserUsingAnyMachine(
+      user.userId,
+      excludeReservationId: activeReservation?.reservationId,
+      excludeDirectMachineId: activeReservation == null ? null : machineId,
+      excludeDirectUsageUserId: activeReservation == null
+          ? null
+          : requestedUsageUserId,
+    );
+    if (hasConflictingUse) return '이미 다른 기구를 사용 중입니다.';
+
     final reservationEndAt = activeReservation?.reservedEndAt;
     if (activeReservation != null &&
         (reservationEndAt == null || !reservationEndAt.isAfter(now))) {
@@ -874,6 +933,16 @@ class GymProvider extends ChangeNotifier {
     }
     final requestedEndAt = now.add(Duration(minutes: minutes));
     final endAt = requestedEndAt;
+    final overlappingUserReservation = _firstOverlappingUserReservation(
+      user.userId,
+      startAt: now,
+      endAt: endAt,
+      excludeReservationId: activeReservation?.reservationId,
+    );
+    if (overlappingUserReservation != null) {
+      return '예약 시간과 겹쳐 다른 기구를 사용할 수 없습니다.';
+    }
+
     final overlappingCount = _overlappingOccupancyCount(
       machineId,
       startAt: now,
@@ -1534,6 +1603,10 @@ class GymProvider extends ChangeNotifier {
         final isReservedWindow = !now.isBefore(startAt) && now.isBefore(endAt);
         if (isReservedWindow &&
             reservation.status == ReservationStatus.waiting) {
+          if (_isUserUsingAnyMachine(reservation.userId)) {
+            continue;
+          }
+
           await SupabaseConfig.client
               .from('reservations')
               .update({'status': ReservationStatus.active.name})

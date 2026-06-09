@@ -105,7 +105,7 @@ class SelectedMachinePanel extends StatelessWidget {
               if (canStart) _ActionButton(label: '사용 시작', onPressed: onStart),
               if (canReserve)
                 _ActionButton(label: '예약하기', onPressed: onReserve),
-              if (isMyReservation)
+              if (isMyReservation && !isCurrentUserUsing)
                 _ActionButton(
                   label: '예약 취소',
                   onPressed: onCancel,

@@ -773,26 +773,28 @@ class _ReservationContent extends StatelessWidget {
             formatRemainingMinutes(estimatedWaitMinutes),
             '${seed}_wait',
           ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: FilledButton(
-                onPressed: isLoading ? null : onEdit,
-                style: FilledButton.styleFrom(backgroundColor: blueColor),
-                child: const Text('예약 수정'),
+        if (!isActive) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton(
+                  onPressed: isLoading ? null : onEdit,
+                  style: FilledButton.styleFrom(backgroundColor: blueColor),
+                  child: const Text('예약 수정'),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: FilledButton(
-                onPressed: isLoading ? null : onCancel,
-                style: FilledButton.styleFrom(backgroundColor: redColor),
-                child: const Text('예약 취소'),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton(
+                  onPressed: isLoading ? null : onCancel,
+                  style: FilledButton.styleFrom(backgroundColor: redColor),
+                  child: const Text('예약 취소'),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ],
     );
   }
